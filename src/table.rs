@@ -155,8 +155,10 @@ impl Table {
 
     /// Get the outcome for a player's hand
     pub fn get_outcome(&self, player: usize) -> Outcome {
-        debug_assert!(if let Some(v) = self.dealer.value() {
-            v >= 17
+        debug_assert!(if let Some(v) = self.dealer.value()
+            && v < 17
+        {
+            self.player_hands[player].blackjack() || self.player_hands[player].busted()
         } else {
             true
         });

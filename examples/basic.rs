@@ -37,7 +37,7 @@ fn main() -> std::io::Result<()> {
                                 continue;
                             }
 
-                            if table.get_outcome(0) == Outcome::Blackjack {
+                            if table.player_hand(0).blackjack() {
                                 print!("\rBlackjack!            ");
                                 std::io::stdout().flush()?;
                                 last_outcome = Some(table.get_outcome(0));
