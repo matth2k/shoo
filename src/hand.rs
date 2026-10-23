@@ -183,6 +183,11 @@ impl Hand {
 
         true
     }
+
+    /// Returns the first card in the hand
+    pub fn first(&self) -> Option<Card> {
+        self.cards.first().copied()
+    }
 }
 
 impl Display for Hand {

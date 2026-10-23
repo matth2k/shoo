@@ -6,7 +6,7 @@
 
 use std::{
     collections::HashMap,
-    ops::{Add, Mul, Sub},
+    ops::{Add, Div, Mul, Sub},
 };
 
 /// A chip to place a bet with
@@ -150,6 +150,20 @@ impl Mul<usize> for Bet {
         let units = self.units * rhs;
         for count in chips.values_mut() {
             *count *= rhs;
+        }
+        Self { chips, units }
+    }
+}
+
+/// Division of a bet by a usize
+impl Div<usize> for Bet {
+    type Output = Self;
+
+    fn div(self, rhs: usize) -> Bet {
+        let mut chips = self.chips;
+        let units = self.units / rhs;
+        for count in chips.values_mut() {
+            *count /= rhs;
         }
         Self { chips, units }
     }

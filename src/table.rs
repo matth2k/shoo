@@ -4,7 +4,7 @@
 
 */
 
-use crate::{bet::Bet, hand::Hand, shoe::Shoe};
+use crate::{bet::Bet, card::Card, hand::Hand, shoe::Shoe};
 use std::fmt::Display;
 
 /// Represents the outcome of a hand
@@ -52,6 +52,7 @@ pub struct Table {
 impl Table {
     /// Creates a new blackjack table with `num_decks` decks and `num_spots` bettings spots and `max_penetration` (from 0.0-1.0 before shuffling)
     pub fn new(num_decks: usize, num_spots: usize, max_penetration: f32) -> Self {
+        // Uses hi-lo strategy
         let shoe = Shoe::new(num_decks);
         let player_hands = vec![Hand::default(); num_spots];
         let _player_bets = vec![Bet::default(); num_spots];
@@ -101,11 +102,11 @@ impl Table {
         self.state = TableState::Open;
     }
 
-    /// Deal the initial hands for player and dealers. Returns true if dealing prompted the shoe to reshuffle.
+    /// Deal the initial hands for `k` players and the dealer. Returns true if dealing prompted the shoe to reshuffle.
     ///
     /// # Panics
     /// Panics if there are already cards dealt on the table
-    pub fn deal(&mut self) -> bool {
+    pub fn deal(&mut self, k: usize) -> bool {
         if self.state != TableState::Open {
             panic!("Cannot deal when hands are currently on the table");
         }
@@ -122,13 +123,21 @@ impl Table {
         self.state = TableState::Dealt;
 
         for _ in 0..2 {
-            for player in &mut self.player_hands {
+            for player in &mut self.player_hands.iter_mut().take(k) {
                 player.insert(self.shoe.deal().unwrap());
             }
             self.dealer.insert(self.shoe.deal().unwrap());
         }
 
         reshuffle
+    }
+
+    /// Deal the initial hands for all player spots and the dealer. Returns true if dealing prompted the shoe to reshuffle.
+    ///
+    /// # Panics
+    /// Panics if there are already cards dealt on the table
+    pub fn deal_all(&mut self) -> bool {
+        self.deal(self.player_hands.len())
     }
 
     /// Returns true if the dealer has blackjack
@@ -146,6 +155,11 @@ impl Table {
         } else {
             false
         }
+    }
+
+    /// Returns the upcard of the dealer
+    pub fn upcard(&self) -> Option<Card> {
+        self.dealer.first()
     }
 
     /// Returns a reference to the hand of player `player`
