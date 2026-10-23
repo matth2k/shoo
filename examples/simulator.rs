@@ -8,8 +8,14 @@ impl Strategy for AlwaysStand {
         Bet::from(shoo::Chip::Five)
     }
 
-    fn decide(&self, _hand: &Hand, _upcard: Card) -> Decision {
-        Decision::Hit
+    fn decide(&self, hand: &Hand, _upcard: Card) -> Decision {
+        if let Some(val) = hand.value()
+            && val < 12
+        {
+            Decision::Hit
+        } else {
+            Decision::Stand
+        }
     }
 
     fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
@@ -20,7 +26,7 @@ fn main() -> std::io::Result<()> {
     for _ in 0..100 {
         bankroll = bankroll + Bet::from(shoo::Chip::Five);
     }
-    let mut sim = Simulator::new(AlwaysStand, bankroll, 6, 6, 0.5);
+    let mut sim = Simulator::new(AlwaysStand, bankroll, 2, 6, 0.5);
 
     let res = sim.simulate(50, 2);
 

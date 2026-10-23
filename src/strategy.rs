@@ -58,9 +58,18 @@ impl Simulator {
         }
     }
 
+    fn process_outcomes(&mut self, bets: Vec<Bet>, outcomes: &Vec<Outcome>) {
+        for (i, outcome) in outcomes.iter().copied().enumerate() {
+            self.strategy
+                .process(self.table.player_hand(i), self.table.dealer_hand(), outcome);
+        }
+        self.update_bankroll(bets, outcomes);
+        self.table.clear_hands();
+    }
+
     /// Add or subtract for the bankrolls
-    fn update_bankroll(&mut self, bets: Vec<Bet>, outcomes: Vec<Outcome>) {
-        for (bet, outcome) in bets.into_iter().zip(outcomes) {
+    fn update_bankroll(&mut self, bets: Vec<Bet>, outcomes: &Vec<Outcome>) {
+        for (bet, &outcome) in bets.into_iter().zip(outcomes) {
             match outcome {
                 Outcome::Win => self.bankroll = self.bankroll.clone() + bet,
                 Outcome::Lose => self.bankroll = self.bankroll.clone() - bet,
@@ -80,8 +89,7 @@ impl Simulator {
 
         if self.table.peek() {
             let outcomes: Vec<_> = (0..k).map(|i| self.table.get_outcome(i)).collect();
-            self.update_bankroll(bets, outcomes.clone());
-            self.table.clear_hands();
+            self.process_outcomes(bets, &outcomes);
             return outcomes;
         }
         let mut outcomes = vec![Outcome::Push; k];
@@ -127,8 +135,7 @@ impl Simulator {
             *outcome = self.table.get_outcome(i);
         }
 
-        self.update_bankroll(bets, outcomes.clone());
-        self.table.clear_hands();
+        self.process_outcomes(bets, &outcomes);
         outcomes
     }
 
@@ -140,6 +147,8 @@ impl Simulator {
             for bet in bets.iter().cloned() {
                 amt = amt.clone() + bet;
             }
+
+            // TODO(matth2k): Check if the player has enough bankroll to place the bets
 
             self.run_hand(bets);
         }

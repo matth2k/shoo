@@ -167,6 +167,11 @@ impl Table {
         &self.player_hands[player]
     }
 
+    /// Returns a reference to the hand of the dealer
+    pub fn dealer_hand(&self) -> &Hand {
+        &self.dealer
+    }
+
     /// Get the outcome for a player's hand
     pub fn get_outcome(&self, player: usize) -> Outcome {
         debug_assert!(if let Some(v) = self.dealer.value()
