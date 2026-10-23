@@ -155,6 +155,14 @@ impl Table {
 
     /// Get the outcome for a player's hand
     pub fn get_outcome(&self, player: usize) -> Outcome {
+        debug_assert!(if let Some(v) = self.dealer.value()
+            && v < 17
+        {
+            self.player_hands[player].blackjack() || self.player_hands[player].busted()
+        } else {
+            true
+        });
+
         if self.dealer.blackjack() {
             return if self.player_hand(player).blackjack() {
                 Outcome::Push
@@ -203,7 +211,11 @@ impl Table {
         self.player_hand(player).busted()
     }
 
-    /// The dealer hits. Returns true if the dealer busted.
+    /// The dealer hits. Also flips if not done.
+    /// Returns true if the dealer busted.
+    ///
+    /// # Panics
+    /// Panics if there are no cards currently dealt
     pub fn dealer_hit(&mut self) -> bool {
         if self.state == TableState::Open {
             panic!("Cannot hit dealer when no cards are dealt");
@@ -234,6 +246,9 @@ impl Table {
     }
 
     /// Flip the dealer's hole card
+    ///
+    /// # Panics
+    /// Panics if there are no cards currently dealt
     pub fn flip_hole(&mut self) {
         if self.state == TableState::Open {
             panic!("Cannot flip hole card when no cards are dealt");

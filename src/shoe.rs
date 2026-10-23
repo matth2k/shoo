@@ -10,8 +10,8 @@ use std::ops::Index;
 
 /// A trait for card counting strategies
 pub trait Counter {
-    /// Create a new counter on `num_decks` decks
-    fn new(num_decks: usize) -> Self;
+    /// Returns the number of decks used in the game
+    fn num_decks(&self) -> usize;
 
     /// Clears the counter
     fn clear(&mut self);
@@ -21,13 +21,6 @@ pub trait Counter {
 
     /// Update the count with a dealt card
     fn insert(&mut self, card: Card);
-
-    /// Update the count with multiple dealt cards
-    fn update(&mut self, cards: impl Iterator<Item = Card>) {
-        for card in cards {
-            self.insert(card);
-        }
-    }
 }
 
 /// The high-low card counting strategy
@@ -36,12 +29,19 @@ pub struct HiLoCounter {
     num_decks: usize,
 }
 
-impl Counter for HiLoCounter {
-    fn new(num_decks: usize) -> Self {
+impl HiLoCounter {
+    /// Create a new high-low counter with the given number of decks
+    pub fn new(num_decks: usize) -> Self {
         Self {
             running_count: 0,
             num_decks,
         }
+    }
+}
+
+impl Counter for HiLoCounter {
+    fn num_decks(&self) -> usize {
+        self.num_decks
     }
 
     fn clear(&mut self) {
@@ -62,16 +62,14 @@ pub struct Shoe {
     /// the cards
     cards: Vec<Card>,
     /// The running count
-    counter: HiLoCounter,
+    counter: Box<dyn Counter>,
     /// the number of decks
     decks: usize,
 }
 
 impl Shoe {
-    /// Create a new shoe with the given number of decks
-    pub fn new(decks: usize) -> Self {
+    fn init_cards(num_decks: usize) -> Vec<Card> {
         let mut cards = Vec::new();
-
         for &s in &[Suit::Heart, Suit::Diamond, Suit::Club, Suit::Spade] {
             for &r in &[
                 Rank::Ace,
@@ -88,19 +86,33 @@ impl Shoe {
                 Rank::Queen,
                 Rank::King,
             ] {
-                for _ in 0..decks {
+                for _ in 0..num_decks {
                     cards.push(Card::new(s, r));
                 }
             }
         }
+        cards
+    }
+
+    /// Create a new shoe with a custom counting strategy
+    pub fn new_custom<C: Counter + 'static>(counter: C) -> Self {
+        let decks = counter.num_decks();
+
+        let cards = Self::init_cards(decks);
 
         let mut shoe = Self {
             cards,
-            counter: HiLoCounter::new(decks),
+            counter: Box::new(counter),
             decks,
         };
         shoe.shuffle();
         shoe
+    }
+
+    /// Create a new shoe using the high-low counting strategy
+    pub fn new(decks: usize) -> Self {
+        let counter = HiLoCounter::new(decks);
+        Self::new_custom(counter)
     }
 }
 
@@ -156,6 +168,8 @@ impl Shoe {
 
     /// Forcibly reset the shoe
     pub fn reset(&mut self) {
-        *self = Self::new(self.decks);
+        self.cards = Self::init_cards(self.decks);
+        self.shuffle();
+        self.counter.clear();
     }
 }

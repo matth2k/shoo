@@ -90,6 +90,7 @@ impl Hand {
                     .collect();
                 let mut all_vals = Vec::new();
 
+                // Iter reversed because lowest value comes first
                 for (o, c) in card.values().iter().rev().enumerate() {
                     for (b, a) in &other_vals {
                         all_vals.push(((c + b), *a + o as u8));
@@ -108,21 +109,7 @@ impl Hand {
                 }
             }
 
-            Value::Blackjack => {
-                let other_vals: Vec<u8> = vec![11, 21];
-                let mut all_vals = Vec::new();
-                for a in card.values() {
-                    for b in &other_vals {
-                        all_vals.push(a + b);
-                    }
-                }
-
-                if all_vals.iter().all(|x| *x > 21) {
-                    Value::Bust
-                } else {
-                    Value::Hard(*all_vals.iter().min().unwrap())
-                }
-            }
+            Value::Blackjack => Value::Hard(11 + card.values()[0]),
         };
 
         if card.is_ace() {

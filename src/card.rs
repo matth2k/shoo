@@ -110,7 +110,7 @@ impl Card {
         self.rank
     }
 
-    /// Get the value(s) of the card
+    /// Get the value(s) of the card ([1, 11] for an ace, [2] for two, etc..)
     pub fn values(&self) -> &[u8] {
         match self.rank {
             Rank::Ace => &[1, 11],
@@ -126,7 +126,7 @@ impl Card {
         }
     }
 
-    /// Return the hi-lo count of a card
+    /// Return the hi-lo count (+1, 0, -1) of a card
     pub fn count(&self) -> i8 {
         match self.rank {
             Rank::Two | Rank::Three | Rank::Four | Rank::Five | Rank::Six => 1,

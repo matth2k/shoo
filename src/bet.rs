@@ -20,6 +20,10 @@ pub enum Chip {
     TwentyFive,
     /// A chip worth 100 units
     Hundred,
+    /// A chip worth 500 units
+    FiveHundred,
+    /// A chip worth 1000 units
+    Thousand,
 }
 
 impl Chip {
@@ -30,7 +34,17 @@ impl Chip {
             Self::Five => 5,
             Self::TwentyFive => 25,
             Self::Hundred => 100,
+            Self::FiveHundred => 500,
+            Self::Thousand => 1000,
         }
+    }
+}
+
+impl Add for Chip {
+    type Output = Bet;
+
+    fn add(self, other: Self) -> Bet {
+        Bet::from(self) + Bet::from(other)
     }
 }
 
@@ -83,7 +97,14 @@ impl IntoIterator for Bet {
 
     fn into_iter(self) -> Self::IntoIter {
         let mut vec = Vec::new();
-        for chip in [Chip::Hundred, Chip::TwentyFive, Chip::Five, Chip::One] {
+        for chip in [
+            Chip::Thousand,
+            Chip::FiveHundred,
+            Chip::Hundred,
+            Chip::TwentyFive,
+            Chip::Five,
+            Chip::One,
+        ] {
             if let Some(&count) = self.chips.get(&chip) {
                 for _ in 0..count {
                     vec.push(chip);
@@ -127,7 +148,7 @@ impl Mul<usize> for Bet {
     fn mul(self, rhs: usize) -> Bet {
         let mut chips = self.chips;
         let units = self.units * rhs;
-        for (_, count) in chips.iter_mut() {
+        for count in chips.values_mut() {
             *count *= rhs;
         }
         Self { chips, units }
