@@ -140,19 +140,18 @@ impl Simulator {
     }
 
     /// Simulate the strategy for a number of iterations, playing a certain number of hands. Returns the final bankroll left.
-    pub fn simulate(&mut self, iter_max: usize, hands_per_iter: usize) -> Bet {
-        for _ in 0..iter_max {
+    pub fn simulate(&mut self, iter_max: usize, hands_per_iter: usize) -> (usize, Bet) {
+        for i in 0..iter_max {
             let bets = vec![self.strategy.bet(); hands_per_iter];
-            let mut amt: Bet = Bet::default();
-            for bet in bets.iter().cloned() {
-                amt = amt.clone() + bet;
-            }
+            let amt: Bet = bets.iter().cloned().sum();
 
-            // TODO(matth2k): Check if the player has enough bankroll to place the bets
+            if amt > self.bankroll {
+                return (i, self.bankroll.clone());
+            }
 
             self.run_hand(bets);
         }
 
-        self.bankroll.clone()
+        (iter_max, self.bankroll.clone())
     }
 }

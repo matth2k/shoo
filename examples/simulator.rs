@@ -22,15 +22,14 @@ impl Strategy for AlwaysStand {
 }
 
 fn main() -> std::io::Result<()> {
-    let mut bankroll = Bet::default();
-    for _ in 0..100 {
-        bankroll = bankroll + Bet::from(shoo::Chip::Five);
+    let bankroll: Bet = Bet::from(1000);
+    for _ in 0..11 {
+        let mut sim = Simulator::new(AlwaysStand, bankroll.clone(), 2, 6, 0.5);
+
+        let res = sim.simulate(5000, 2);
+
+        eprintln!("{:?}", res);
     }
-    let mut sim = Simulator::new(AlwaysStand, bankroll, 2, 6, 0.5);
-
-    let res = sim.simulate(50, 2);
-
-    eprintln!("Results: {:?}", res);
 
     Ok(())
 }
