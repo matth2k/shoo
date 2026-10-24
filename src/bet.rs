@@ -6,6 +6,7 @@
 
 use std::{
     collections::HashMap,
+    iter::Sum,
     ops::{Add, Div, Mul, Sub},
 };
 
@@ -91,6 +92,31 @@ impl Bet {
     }
 }
 
+impl From<usize> for Bet {
+    fn from(mut val: usize) -> Self {
+        let mut units = 0;
+        let mut chips = HashMap::new();
+
+        for chip in [
+            Chip::Thousand,
+            Chip::FiveHundred,
+            Chip::Hundred,
+            Chip::TwentyFive,
+            Chip::Five,
+            Chip::One,
+        ] {
+            let count = val / chip.value();
+            if count > 0 {
+                chips.insert(chip, count);
+                units += count * chip.value();
+            }
+            val -= count * chip.value();
+        }
+
+        Self { chips, units }
+    }
+}
+
 impl IntoIterator for Bet {
     type Item = Chip;
     type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -132,12 +158,8 @@ impl Sub for Bet {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        let mut chips = self.chips;
-        for (chip, count) in other.chips {
-            *chips.entry(chip).or_insert(0) -= count;
-        }
         let units = self.units - other.units;
-        Self { chips, units }
+        Bet::from(units)
     }
 }
 
@@ -146,12 +168,8 @@ impl Mul<usize> for Bet {
     type Output = Self;
 
     fn mul(self, rhs: usize) -> Bet {
-        let mut chips = self.chips;
         let units = self.units * rhs;
-        for count in chips.values_mut() {
-            *count *= rhs;
-        }
-        Self { chips, units }
+        Bet::from(units)
     }
 }
 
@@ -160,11 +178,13 @@ impl Div<usize> for Bet {
     type Output = Self;
 
     fn div(self, rhs: usize) -> Bet {
-        let mut chips = self.chips;
         let units = self.units / rhs;
-        for count in chips.values_mut() {
-            *count /= rhs;
-        }
-        Self { chips, units }
+        Bet::from(units)
+    }
+}
+
+impl Sum for Bet {
+    fn sum<I: Iterator<Item = Bet>>(iter: I) -> Self {
+        iter.fold(Bet::default(), |acc, x| acc + x)
     }
 }

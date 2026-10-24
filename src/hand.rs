@@ -53,6 +53,24 @@ impl Default for Hand {
     }
 }
 
+impl IntoIterator for Hand {
+    type Item = Card;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.cards.into_iter()
+    }
+}
+
+impl IntoIterator for &Hand {
+    type Item = Card;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.cards.clone().into_iter()
+    }
+}
+
 impl Hand {
     /// Deal a card to the hand
     pub fn insert(&mut self, card: Card) {
