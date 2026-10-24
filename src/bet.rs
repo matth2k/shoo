@@ -122,8 +122,8 @@ impl From<usize> for Bet {
             if count > 0 {
                 chips.insert(chip, count);
                 units += count * chip.value();
+                val -= count * chip.value();
             }
-            val -= count * chip.value();
         }
 
         Self { chips, units }
