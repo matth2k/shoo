@@ -144,7 +144,7 @@ impl Simulator {
     /// Simulate the strategy for a number of iterations, playing a certain number of hands.
     /// Returns the bankroll state at each iter.
     pub fn simulate(&mut self, iter_max: usize, hands_per_iter: usize) -> Vec<usize> {
-        let mut hist = Vec::new();
+        let mut hist = vec![self.bankroll.units()];
         for _ in 0..iter_max {
             let bets = vec![self.strategy.bet(); hands_per_iter];
             let amt: Bet = bets.iter().cloned().sum();
