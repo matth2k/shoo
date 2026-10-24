@@ -14,8 +14,9 @@ fn test_bet_sub() {
 }
 
 #[test]
-#[should_panic(expected = "overflow")]
-fn test_bet_sub_fail() {
+fn test_bet_sub_change() {
     let bet = Bet::from(Chip::TwentyFive) + Bet::from(Chip::Five) + Bet::default();
-    let _bet = bet - Bet::from(Chip::One);
+    let bet = bet - Bet::from(Chip::One);
+    let change = Bet::from(Chip::TwentyFive) + Bet::from(Chip::One) * 4;
+    assert_eq!(bet, change);
 }
