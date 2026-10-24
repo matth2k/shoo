@@ -9,12 +9,10 @@ impl Strategy for AlwaysStand {
     }
 
     fn decide(&self, hand: &Hand, _upcard: Card) -> Decision {
-        if let Some(val) = hand.value()
-            && val < 12
-        {
-            Decision::Hit
-        } else {
-            Decision::Stand
+        match hand.value() {
+            Some(11) | Some(10) => Decision::Double,
+            Some(v) if v < 11 => Decision::Hit,
+            _ => Decision::Stand,
         }
     }
 

@@ -67,8 +67,21 @@ impl From<Chip> for Bet {
     }
 }
 
+impl Bet {
+    /// Returns the number of betting units
+    pub fn units(&self) -> usize {
+        self.units
+    }
+}
+
 impl From<Bet> for usize {
     fn from(val: Bet) -> Self {
+        val.units
+    }
+}
+
+impl From<&Bet> for usize {
+    fn from(val: &Bet) -> Self {
         val.units
     }
 }

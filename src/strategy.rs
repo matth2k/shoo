@@ -98,24 +98,26 @@ impl Simulator {
         for i in 0..k {
             while let hand = self.table.player_hand(i)
                 && !hand.busted()
-                && let decision = self.strategy.decide(hand, upcard)
-                && decision != Decision::Stand
             {
-                match decision {
-                    Decision::Hit => {
-                        self.table.player_hit(i);
-                        if self.table.player_hand(i).busted() {
-                            outcomes[i] = self.table.get_outcome(i);
-                        }
-                    }
-                    Decision::Stand => unreachable!(),
-                    Decision::Double => {
+                match self.strategy.decide(hand, upcard) {
+                    Decision::Double
+                        if self.bankroll.units()
+                            >= bets[i].units() + bets.iter().map(|b| b.units()).sum::<usize>() =>
+                    {
                         bets[i] = bets[i].clone() * 2;
                         self.table.player_hit(i);
                         if self.table.player_hand(i).busted() {
                             outcomes[i] = self.table.get_outcome(i);
                         }
                     }
+                    Decision::Hit | Decision::Double => {
+                        self.table.player_hit(i);
+                        if self.table.player_hand(i).busted() {
+                            outcomes[i] = self.table.get_outcome(i);
+                        }
+                        break;
+                    }
+                    Decision::Stand => break,
                     Decision::Split => {
                         todo!("Implement split");
                     }
@@ -139,19 +141,22 @@ impl Simulator {
         outcomes
     }
 
-    /// Simulate the strategy for a number of iterations, playing a certain number of hands. Returns the final bankroll left.
-    pub fn simulate(&mut self, iter_max: usize, hands_per_iter: usize) -> (usize, Bet) {
-        for i in 0..iter_max {
+    /// Simulate the strategy for a number of iterations, playing a certain number of hands.
+    /// Returns the bankroll state at each iter.
+    pub fn simulate(&mut self, iter_max: usize, hands_per_iter: usize) -> Vec<usize> {
+        let mut hist = Vec::new();
+        for _ in 0..iter_max {
             let bets = vec![self.strategy.bet(); hands_per_iter];
             let amt: Bet = bets.iter().cloned().sum();
 
             if amt > self.bankroll {
-                return (i, self.bankroll.clone());
+                return hist;
             }
 
             self.run_hand(bets);
+            hist.push(self.bankroll.units());
         }
 
-        (iter_max, self.bankroll.clone())
+        hist
     }
 }
