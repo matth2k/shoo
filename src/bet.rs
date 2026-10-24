@@ -6,7 +6,8 @@
 
 use std::{
     collections::HashMap,
-    ops::{Add, Mul, Sub},
+    iter::Sum,
+    ops::{Add, Div, Mul, Sub},
 };
 
 /// A chip to place a bet with
@@ -66,8 +67,21 @@ impl From<Chip> for Bet {
     }
 }
 
+impl Bet {
+    /// Returns the number of betting units
+    pub fn units(&self) -> usize {
+        self.units
+    }
+}
+
 impl From<Bet> for usize {
     fn from(val: Bet) -> Self {
+        val.units
+    }
+}
+
+impl From<&Bet> for usize {
+    fn from(val: &Bet) -> Self {
         val.units
     }
 }
@@ -88,6 +102,31 @@ impl Bet {
     /// Returns true if the bet is zero/empty
     pub fn is_empty(&self) -> bool {
         self.units == 0
+    }
+}
+
+impl From<usize> for Bet {
+    fn from(mut val: usize) -> Self {
+        let mut units = 0;
+        let mut chips = HashMap::new();
+
+        for chip in [
+            Chip::Thousand,
+            Chip::FiveHundred,
+            Chip::Hundred,
+            Chip::TwentyFive,
+            Chip::Five,
+            Chip::One,
+        ] {
+            let count = val / chip.value();
+            if count > 0 {
+                chips.insert(chip, count);
+                units += count * chip.value();
+                val -= count * chip.value();
+            }
+        }
+
+        Self { chips, units }
     }
 }
 
@@ -132,12 +171,8 @@ impl Sub for Bet {
     type Output = Self;
 
     fn sub(self, other: Self) -> Self {
-        let mut chips = self.chips;
-        for (chip, count) in other.chips {
-            *chips.entry(chip).or_insert(0) -= count;
-        }
         let units = self.units - other.units;
-        Self { chips, units }
+        Bet::from(units)
     }
 }
 
@@ -146,11 +181,23 @@ impl Mul<usize> for Bet {
     type Output = Self;
 
     fn mul(self, rhs: usize) -> Bet {
-        let mut chips = self.chips;
         let units = self.units * rhs;
-        for count in chips.values_mut() {
-            *count *= rhs;
-        }
-        Self { chips, units }
+        Bet::from(units)
+    }
+}
+
+/// Division of a bet by a usize
+impl Div<usize> for Bet {
+    type Output = Self;
+
+    fn div(self, rhs: usize) -> Bet {
+        let units = self.units / rhs;
+        Bet::from(units)
+    }
+}
+
+impl Sum for Bet {
+    fn sum<I: Iterator<Item = Bet>>(iter: I) -> Self {
+        iter.fold(Bet::default(), |acc, x| acc + x)
     }
 }

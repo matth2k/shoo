@@ -11,6 +11,7 @@ mod bet;
 mod card;
 mod hand;
 mod shoe;
+pub mod strategy;
 pub mod table;
 
 pub use bet::*;

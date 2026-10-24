@@ -25,7 +25,7 @@ fn main() -> std::io::Result<()> {
                 KeyCode::Right => {
                     match last_outcome {
                         Some(_) => {
-                            if table.deal() {
+                            if table.deal_all() {
                                 println!("\rShoe reshuffled!            ");
                             }
                             if table.peek() {
