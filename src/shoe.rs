@@ -24,6 +24,7 @@ pub trait Counter {
 }
 
 /// The high-low card counting strategy
+#[derive(Debug, Clone)]
 pub struct HiLoCounter {
     running_count: i32,
     num_decks: usize,
@@ -58,6 +59,7 @@ impl Counter for HiLoCounter {
 }
 
 /// A shoe of cards
+#[derive(Debug, Clone)]
 pub struct Shoe {
     /// the cards
     cards: Vec<Card>,

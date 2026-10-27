@@ -22,22 +22,28 @@ pub enum Decision {
 
 /// Decisions needed to play blackjack
 pub trait Strategy {
-    /// Place a bet in the current context
-    fn bet(&self) -> Bet;
+    /// Place a series of bets/hands in the current context
+    fn bet(&self) -> Vec<Bet>;
 
     /// Make a choice based on the hand and upcard
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision;
 
     /// Process the last outcome of the hand
     fn process(&mut self, hand: &Hand, dealer: &Hand, outcome: Outcome);
+
+    /// Max number of hands this strategy ever uses
+    fn max_hands(&self) -> usize;
+
+    /// The name of this strategy
+    fn name(&self) -> String;
 }
 
 /// Run a blackjack strategy
 pub struct Simulator {
-    /// The strategy to run
-    strategy: Box<dyn Strategy>,
-    /// The bankroll of the player
-    bankroll: Bet,
+    /// The strategies to run
+    strategies: Vec<Box<dyn Strategy>>,
+    /// The bankrolls per stategy
+    bankrolls: Vec<Bet>,
     /// The blackjack table to play on
     table: Table,
 }
@@ -48,33 +54,50 @@ impl Simulator {
         strategy: S,
         bankroll: Bet,
         num_decks: usize,
-        max_spots: usize,
         max_penetration: f32,
     ) -> Self {
+        let bankrolls = vec![bankroll];
+        let table = Table::new(num_decks, strategy.max_hands(), max_penetration);
+        let boxed: Box<dyn Strategy> = Box::new(strategy);
+        let strategies = vec![boxed];
         Self {
-            strategy: Box::new(strategy),
-            bankroll,
-            table: Table::new(num_decks, max_spots, max_penetration),
+            strategies,
+            bankrolls,
+            table,
         }
     }
 
-    fn process_outcomes(&mut self, bets: Vec<Bet>, outcomes: &Vec<Outcome>) {
-        for (i, outcome) in outcomes.iter().copied().enumerate() {
-            self.strategy
-                .process(self.table.player_hand(i), self.table.dealer_hand(), outcome);
+    /// Add an additional strategy to the simulator
+    /// Create a new simulator with the given strategy and bankroll
+    pub fn insert<S: Strategy + 'static>(&mut self, strategy: S, bankroll: Bet) {
+        self.bankrolls.push(bankroll);
+        self.table = self
+            .table
+            .new_like(self.table.num_spots() + strategy.max_hands());
+        let boxed: Box<dyn Strategy> = Box::new(strategy);
+        self.strategies.push(boxed);
+    }
+
+    fn process_outcomes(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
+        for (i, ((strat, _bet), &outcome)) in bets.iter().zip(outcomes).enumerate() {
+            self.strategies[*strat].process(
+                self.table.player_hand(i),
+                self.table.dealer_hand(),
+                outcome,
+            );
         }
         self.update_bankroll(bets, outcomes);
         self.table.clear_hands();
     }
 
     /// Add or subtract for the bankrolls
-    fn update_bankroll(&mut self, bets: Vec<Bet>, outcomes: &Vec<Outcome>) {
-        for (bet, &outcome) in bets.into_iter().zip(outcomes) {
+    fn update_bankroll(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
+        for ((strat, bet), &outcome) in bets.into_iter().zip(outcomes) {
             match outcome {
-                Outcome::Win => self.bankroll = self.bankroll.clone() + bet,
-                Outcome::Lose => self.bankroll = self.bankroll.clone() - bet,
+                Outcome::Win => self.bankrolls[strat] = self.bankrolls[strat].clone() + bet,
+                Outcome::Lose => self.bankrolls[strat] = self.bankrolls[strat].clone() - bet,
                 Outcome::Blackjack => {
-                    self.bankroll = self.bankroll.clone() + bet.clone() + (bet / 2)
+                    self.bankrolls[strat] = self.bankrolls[strat].clone() + bet.clone() + (bet / 2)
                 }
                 Outcome::Push => {}
             }
@@ -82,9 +105,12 @@ impl Simulator {
     }
 
     /// Run a single iteration with a set of bets. Returns the outcomes of the hands.
-    fn run_hand(&mut self, mut bets: Vec<Bet>) -> Vec<Outcome> {
-        let k = bets.len();
+    fn run_hand(&mut self, mut bets: Vec<(usize, Bet)>) -> Vec<Outcome> {
+        if bets.is_empty() {
+            return Vec::new();
+        }
 
+        let k = bets.len();
         self.table.deal_up_to(k);
 
         if self.table.peek() {
@@ -95,16 +121,13 @@ impl Simulator {
         let mut outcomes = vec![Outcome::Push; k];
 
         let upcard = self.table.upcard().unwrap();
-        for i in 0..k {
+        for (i, (strat, bet)) in bets.iter_mut().enumerate() {
             while let hand = self.table.player_hand(i)
                 && !hand.busted()
             {
-                match self.strategy.decide(hand, upcard) {
-                    Decision::Double
-                        if self.bankroll.units()
-                            >= bets[i].units() + bets.iter().map(|b| b.units()).sum::<usize>() =>
-                    {
-                        bets[i] = bets[i].clone() * 2;
+                match self.strategies[*strat].decide(hand, upcard) {
+                    Decision::Double if self.bankrolls[*strat].units() >= 2 * bet.units() => {
+                        *bet = bet.clone() * 2;
                         self.table.player_hit(i);
                         if self.table.player_hand(i).busted() {
                             outcomes[i] = self.table.get_outcome(i);
@@ -141,20 +164,31 @@ impl Simulator {
         outcomes
     }
 
-    /// Simulate the strategy for a number of iterations, playing a certain number of hands.
-    /// Returns the bankroll state at each iter.
-    pub fn simulate(&mut self, iter_max: usize, hands_per_iter: usize) -> Vec<usize> {
-        let mut hist = vec![self.bankroll.units()];
-        for _ in 0..iter_max {
-            let bets = vec![self.strategy.bet(); hands_per_iter];
-            let amt: Bet = bets.iter().cloned().sum();
+    /// Simulate the strategy for a number of iterations.
+    /// Returns the bankroll state at each iter. `vec[t][i]` is the bankroll state of strategy `i` at iteration `t`.
+    pub fn simulate(&mut self, iter_max: usize) -> Vec<Vec<usize>> {
+        let mut hist = Vec::new();
+        hist.push(self.bankrolls.iter().map(|b| b.units()).collect::<Vec<_>>());
 
-            if amt > self.bankroll {
-                return hist;
+        for _ in 0..iter_max {
+            let mut bets = Vec::new();
+            for (i, strat) in self.strategies.iter().enumerate() {
+                let mut amt = 0;
+                for bet in strat.bet() {
+                    // TODO(matth2k): Can't always check amount upfront. Need to do it dynamically.
+                    if self.bankrolls[i].units() >= 2 * bet.units() + amt {
+                        amt += 2 * bet.units();
+                        bets.push((i, bet));
+                    }
+                }
+            }
+
+            if bets.is_empty() {
+                break;
             }
 
             self.run_hand(bets);
-            hist.push(self.bankroll.units());
+            hist.push(self.bankrolls.iter().map(|b| b.units()).collect::<Vec<_>>());
         }
 
         hist

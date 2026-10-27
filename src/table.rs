@@ -32,6 +32,7 @@ enum TableState {
 }
 
 /// A blackjack table
+#[derive(Debug, Clone)]
 pub struct Table {
     /// The dealer's hand
     dealer: Hand,
@@ -65,6 +66,15 @@ impl Table {
             num_decks,
             state: TableState::Open,
         }
+    }
+
+    /// Creates a new blackjack table at the current state but with a different number of spots
+    pub fn new_like(&self, num_spots: usize) -> Self {
+        let mut other = self.clone();
+        for _ in 0..num_spots {
+            other.player_hands.push(Hand::default());
+        }
+        other
     }
 
     /// Resets the table
@@ -288,6 +298,11 @@ impl Table {
             panic!("Cannot flip hole card when no cards are dealt");
         }
         self.state = TableState::Flipped;
+    }
+
+    /// Returns the number of spots at the table
+    pub fn num_spots(&self) -> usize {
+        self.player_hands.len()
     }
 }
 
