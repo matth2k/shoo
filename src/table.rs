@@ -4,7 +4,7 @@
 
 */
 
-use crate::{bet::Bet, card::Card, hand::Hand, shoe::Shoe};
+use crate::{card::Card, hand::Hand, shoe::Shoe};
 use std::fmt::Display;
 
 /// Represents the outcome of a hand
@@ -37,8 +37,6 @@ pub struct Table {
     dealer: Hand,
     /// The player hands
     player_hands: Vec<Hand>,
-    /// The player bets
-    _player_bets: Vec<Bet>,
     /// The shoe
     shoe: Shoe,
     /// The max deck penetration before reshuffle
@@ -55,7 +53,6 @@ impl Table {
         // Uses hi-lo strategy
         let shoe = Shoe::new(num_decks);
         let player_hands = vec![Hand::default(); num_spots];
-        let _player_bets = vec![Bet::default(); num_spots];
         let dealer = Hand::default();
 
         let max_penetration = max_penetration.clamp(0.0, 1.0);
@@ -63,7 +60,6 @@ impl Table {
         Self {
             dealer,
             player_hands,
-            _player_bets,
             shoe,
             max_penetration,
             num_decks,
@@ -92,7 +88,7 @@ impl Table {
     /// # Panics
     /// Panics if there are no cards currently dealt
     pub fn clear_hands(&mut self) {
-        if self.state != TableState::Flipped {
+        if self.state == TableState::Dealt {
             panic!("Cannot clear hands before dealer has flipped");
         }
         self.dealer = Hand::default();
@@ -102,14 +98,19 @@ impl Table {
         self.state = TableState::Open;
     }
 
-    /// Deal the initial hands for `k` players and the dealer. Returns true if dealing prompted the shoe to reshuffle.
+    /// Deal the betting spots in `spots` and the dealer.
+    /// Returns true if dealing prompted the shoe to reshuffle.
     ///
     /// # Panics
     /// Panics if there are already cards dealt on the table
-    pub fn deal(&mut self, k: usize) -> bool {
+    pub fn deal(&mut self, spots: &[usize]) -> bool {
         if self.state != TableState::Open {
             panic!("Cannot deal when hands are currently on the table");
         }
+
+        let mut spots = spots.to_vec();
+        spots.sort();
+        spots.dedup();
 
         for player in &self.player_hands {
             debug_assert!(player.is_empty());
@@ -123,8 +124,8 @@ impl Table {
         self.state = TableState::Dealt;
 
         for _ in 0..2 {
-            for player in &mut self.player_hands.iter_mut().take(k) {
-                player.insert(self.shoe.deal().unwrap());
+            for &player in &spots {
+                self.player_hands[player].insert(self.shoe.deal().unwrap());
             }
             self.dealer.insert(self.shoe.deal().unwrap());
         }
@@ -132,12 +133,24 @@ impl Table {
         reshuffle
     }
 
-    /// Deal the initial hands for all player spots and the dealer. Returns true if dealing prompted the shoe to reshuffle.
+    /// Deal the initial hands for the first `k` spots and the dealer.
+    /// Returns true if dealing prompted the shoe to reshuffle.
+    ///
+    /// # Panics
+    /// Panics if there are already cards dealt on the table
+    /// Panics if k is out of range
+    pub fn deal_up_to(&mut self, k: usize) -> bool {
+        let all = (0..k).collect::<Vec<_>>();
+        self.deal(&all)
+    }
+
+    /// Deal the initial hands for all player spots and the dealer.
+    /// Returns true if dealing prompted the shoe to reshuffle.
     ///
     /// # Panics
     /// Panics if there are already cards dealt on the table
     pub fn deal_all(&mut self) -> bool {
-        self.deal(self.player_hands.len())
+        self.deal_up_to(self.player_hands.len())
     }
 
     /// Returns true if the dealer has blackjack
@@ -168,7 +181,13 @@ impl Table {
     }
 
     /// Returns a reference to the hand of the dealer
+    ///
+    /// # Panics
+    /// Panics if the dealer has not flipped their hole card yet
     pub fn dealer_hand(&self) -> &Hand {
+        if self.state == TableState::Dealt {
+            panic!("Cannot get dealer hand when a hand is in progress");
+        }
         &self.dealer
     }
 
@@ -252,10 +271,6 @@ impl Table {
 
     /// The dealer value
     pub fn dealer_value(&self) -> Option<u8> {
-        if self.state == TableState::Open {
-            return None;
-        }
-
         self.dealer.value()
     }
 

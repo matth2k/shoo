@@ -85,7 +85,7 @@ impl Simulator {
     fn run_hand(&mut self, mut bets: Vec<Bet>) -> Vec<Outcome> {
         let k = bets.len();
 
-        self.table.deal(k);
+        self.table.deal_up_to(k);
 
         if self.table.peek() {
             let outcomes: Vec<_> = (0..k).map(|i| self.table.get_outcome(i)).collect();
