@@ -108,4 +108,4 @@ let res = sim.simulate(50000);
 
 ## Limitations
 
-Some features of Blackjack rulesets are not modeled by this application. Two things that come to mind are insurance bets, resplitting aces, and hit or stand on soft 17. This library was programmed with Pennsylvania Blackjack in mind, but rule difference should eventually be modeled.
+Some features of Blackjack rulesets are not modeled by this application. Two things that come to mind are insurance bets, resplitting aces, and hit or stand on soft 17. This library was programmed with Pennsylvania Blackjack in mind, but rule differences and insurance bets should eventually be modeled.
