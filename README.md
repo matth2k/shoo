@@ -90,7 +90,7 @@ impl Strategy for SometimesHit {
 }
 ```
 
-If you want to simulate advantage play, a.k.a. card counting, you should add that within the `process()` hook. After every hand, the strategy can inspect the winning/losing hands and the dealer hand. Here you would consume the individual cards and add them to the running count. It is simple as adding a counter member field. You can even vary how many hands you want to play in `bet()`. I will leave those strategy implementations as an exercise to the reader. Lastly, you can simulate these strategies at a table:
+If you want to simulate advantage play, a.k.a. card counting, you should add that within the `process()` hook. After every hand, the strategy can inspect the winning/losing hands and the dealer hand. Here you would consume the individual cards and add them to the running count. It is as simple as adding a card counter member field. You can even vary how many hands you want to play in `bet()`. I will leave those strategy implementations as an exercise to the reader. Lastly, you can simulate these strategies at a table:
 
 ```rust
 // Bankroll of 10k units
