@@ -29,6 +29,38 @@ impl Strategy for SometimesHit {
     }
 }
 
+pub struct SometimesHitTwo;
+
+impl Strategy for SometimesHitTwo {
+    fn bet(&self) -> Vec<Bet> {
+        vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+    }
+
+    fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
+        match hand.value() {
+            Some(11) | Some(10) if !matches!(upcard.rank(), shoo::Rank::Ace | shoo::Rank::Ten) => {
+                Decision::Double
+            }
+            Some(v) if v <= 16 && hand.pairs() && upcard.rank() <= shoo::Rank::Six => {
+                Decision::Split
+            }
+            Some(v) if v <= 11 => Decision::Hit,
+            Some(v) if v <= 16 && upcard.rank() >= shoo::Rank::Seven => Decision::Hit,
+            _ => Decision::Stand,
+        }
+    }
+
+    fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+
+    fn max_hands(&self) -> usize {
+        2
+    }
+
+    fn name(&self) -> String {
+        "SometimesHitTwo".to_string()
+    }
+}
+
 pub struct AlwaysStand;
 
 impl Strategy for AlwaysStand {
@@ -56,7 +88,7 @@ fn main() -> std::io::Result<()> {
     let mut trials = Vec::new();
     for _ in 0..20 {
         let mut sim = Simulator::new(SometimesHit, bankroll.clone(), 6, 0.5);
-        sim.insert(SometimesHit, bankroll.clone());
+        sim.insert(SometimesHitTwo, bankroll.clone());
 
         let res = sim.simulate(50000);
 

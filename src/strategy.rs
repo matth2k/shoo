@@ -103,7 +103,7 @@ impl Simulator {
     }
 
     /// Run a single iteration with a set of bets. Returns the outcomes of the hands.
-    fn run_hand(&mut self, mut bets: Vec<(usize, Bet)>) -> Vec<Outcome> {
+    fn run_hand(&mut self, bets: Vec<(usize, Bet)>) -> Vec<Outcome> {
         if bets.is_empty() {
             return Vec::new();
         }
@@ -119,11 +119,15 @@ impl Simulator {
         let mut outcomes = vec![Outcome::Push; k];
 
         let upcard = self.table.upcard().unwrap();
+
+        // Allocate each hand in order to a spot
+        let mut bets: Vec<_> = bets.into_iter().enumerate().collect();
         let mut processed = Vec::new();
 
         for _ in 0..4 {
             let mut split_hands = Vec::new();
-            for (i, (strat, bet)) in bets.iter_mut().enumerate() {
+            for (i, (strat, bet)) in bets.iter_mut() {
+                let i = *i;
                 while let hand = self.table.player_hand(i)
                     && !hand.busted()
                 {
@@ -142,7 +146,7 @@ impl Simulator {
                                 && let Some((_og, b)) = self.table.player_split(i) =>
                         {
                             self.bankrolls[*strat] -= bet.clone();
-                            let new_bet = (b, bet.clone());
+                            let new_bet = (b, (*strat, bet.clone()));
                             split_hands.push(new_bet);
                         }
                         Decision::Hit | Decision::Double => {
@@ -156,7 +160,7 @@ impl Simulator {
                 }
             }
 
-            processed.extend(bets);
+            processed.extend(bets.into_iter().map(|(_, b)| b));
 
             if split_hands.is_empty() {
                 break;
