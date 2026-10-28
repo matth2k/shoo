@@ -24,6 +24,7 @@ pub trait Counter {
 }
 
 /// The high-low card counting strategy
+#[derive(Debug, Clone)]
 pub struct HiLoCounter {
     running_count: i32,
     num_decks: usize,
@@ -58,11 +59,12 @@ impl Counter for HiLoCounter {
 }
 
 /// A shoe of cards
+#[derive(Debug, Clone)]
 pub struct Shoe {
     /// the cards
     cards: Vec<Card>,
     /// The running count
-    counter: Box<dyn Counter>,
+    counter: HiLoCounter,
     /// the number of decks
     decks: usize,
 }
@@ -94,25 +96,17 @@ impl Shoe {
         cards
     }
 
-    /// Create a new shoe with a custom counting strategy
-    pub fn new_custom<C: Counter + 'static>(counter: C) -> Self {
-        let decks = counter.num_decks();
-
+    /// Create a new shoe using the high-low counting strategy
+    pub fn new(decks: usize) -> Self {
+        let counter = HiLoCounter::new(decks);
         let cards = Self::init_cards(decks);
-
         let mut shoe = Self {
             cards,
-            counter: Box::new(counter),
+            counter,
             decks,
         };
         shoe.shuffle();
         shoe
-    }
-
-    /// Create a new shoe using the high-low counting strategy
-    pub fn new(decks: usize) -> Self {
-        let counter = HiLoCounter::new(decks);
-        Self::new_custom(counter)
     }
 }
 

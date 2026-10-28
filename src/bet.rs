@@ -7,7 +7,7 @@
 use std::{
     collections::HashMap,
     iter::Sum,
-    ops::{Add, Div, Mul, Sub},
+    ops::{Add, AddAssign, Div, Mul, Sub, SubAssign},
 };
 
 /// A chip to place a bet with
@@ -167,6 +167,15 @@ impl Add for Bet {
     }
 }
 
+impl AddAssign for Bet {
+    fn add_assign(&mut self, rhs: Self) {
+        self.units += rhs.units;
+        for (chip, count) in rhs.chips {
+            *self.chips.entry(chip).or_insert(0) += count;
+        }
+    }
+}
+
 impl Sub for Bet {
     type Output = Self;
 
@@ -176,13 +185,23 @@ impl Sub for Bet {
     }
 }
 
+impl SubAssign for Bet {
+    fn sub_assign(&mut self, rhs: Self) {
+        let units = self.units - rhs.units;
+        *self = Bet::from(units);
+    }
+}
+
 /// Multiplication of a bet by a usize
 impl Mul<usize> for Bet {
     type Output = Self;
 
-    fn mul(self, rhs: usize) -> Bet {
-        let units = self.units * rhs;
-        Bet::from(units)
+    fn mul(mut self, rhs: usize) -> Bet {
+        self.units *= rhs;
+        for count in self.chips.values_mut() {
+            *count *= rhs;
+        }
+        self
     }
 }
 
