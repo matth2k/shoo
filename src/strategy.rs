@@ -57,7 +57,7 @@ impl Simulator {
         max_penetration: f32,
     ) -> Self {
         let bankrolls = vec![bankroll];
-        let table = Table::new(num_decks, strategy.max_hands(), max_penetration);
+        let table = Table::new(num_decks, strategy.max_hands() * 2, max_penetration);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         let strategies = vec![boxed];
         Self {
@@ -68,12 +68,11 @@ impl Simulator {
     }
 
     /// Add an additional strategy to the simulator
-    /// Create a new simulator with the given strategy and bankroll
     pub fn insert<S: Strategy + 'static>(&mut self, strategy: S, bankroll: Bet) {
         self.bankrolls.push(bankroll);
         self.table = self
             .table
-            .new_like(self.table.num_spots() + strategy.max_hands());
+            .new_like(self.table.num_spots() + strategy.max_hands() * 2);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         self.strategies.push(boxed);
     }
@@ -93,13 +92,12 @@ impl Simulator {
     /// Add or subtract for the bankrolls
     fn update_bankroll(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
         for ((strat, bet), &outcome) in bets.into_iter().zip(outcomes) {
+            let double = bet.clone() * 2;
             match outcome {
-                Outcome::Win => self.bankrolls[strat] = self.bankrolls[strat].clone() + bet,
-                Outcome::Lose => self.bankrolls[strat] = self.bankrolls[strat].clone() - bet,
-                Outcome::Blackjack => {
-                    self.bankrolls[strat] = self.bankrolls[strat].clone() + bet.clone() + (bet / 2)
-                }
-                Outcome::Push => {}
+                Outcome::Win => self.bankrolls[strat] += double,
+                Outcome::Lose => {}
+                Outcome::Blackjack => self.bankrolls[strat] += double + (bet / 2),
+                Outcome::Push => self.bankrolls[strat] += bet,
             }
         }
     }
@@ -121,31 +119,50 @@ impl Simulator {
         let mut outcomes = vec![Outcome::Push; k];
 
         let upcard = self.table.upcard().unwrap();
-        for (i, (strat, bet)) in bets.iter_mut().enumerate() {
-            while let hand = self.table.player_hand(i)
-                && !hand.busted()
-            {
-                match self.strategies[*strat].decide(hand, upcard) {
-                    Decision::Double if self.bankrolls[*strat].units() >= 2 * bet.units() => {
-                        *bet = bet.clone() * 2;
-                        self.table.player_hit(i);
-                        if self.table.player_hand(i).busted() {
-                            outcomes[i] = self.table.get_outcome(i);
+        let mut processed = Vec::new();
+
+        for _ in 0..4 {
+            let mut split_hands = Vec::new();
+            for (i, (strat, bet)) in bets.iter_mut().enumerate() {
+                while let hand = self.table.player_hand(i)
+                    && !hand.busted()
+                {
+                    match self.strategies[*strat].decide(hand, upcard) {
+                        Decision::Double if self.bankrolls[*strat].units() >= bet.units() => {
+                            self.bankrolls[*strat] -= bet.clone();
+                            *bet = bet.clone() * 2;
+                            self.table.player_hit(i);
+                            if self.table.player_hand(i).busted() {
+                                outcomes[i] = self.table.get_outcome(i);
+                            }
+                            break;
                         }
-                    }
-                    Decision::Hit | Decision::Double => {
-                        self.table.player_hit(i);
-                        if self.table.player_hand(i).busted() {
-                            outcomes[i] = self.table.get_outcome(i);
+                        Decision::Split
+                            if self.bankrolls[*strat].units() >= bet.units()
+                                && let Some((_og, b)) = self.table.player_split(i) =>
+                        {
+                            self.bankrolls[*strat] -= bet.clone();
+                            let new_bet = (b, bet.clone());
+                            split_hands.push(new_bet);
                         }
-                        break;
-                    }
-                    Decision::Stand => break,
-                    Decision::Split => {
-                        todo!("Implement split");
+                        Decision::Hit | Decision::Double => {
+                            self.table.player_hit(i);
+                            if self.table.player_hand(i).busted() {
+                                outcomes[i] = self.table.get_outcome(i);
+                            }
+                        }
+                        Decision::Stand | Decision::Split => break,
                     }
                 }
             }
+
+            processed.extend(bets);
+
+            if split_hands.is_empty() {
+                break;
+            }
+
+            bets = split_hands;
         }
 
         if outcomes.iter().any(|o| *o != Outcome::Lose) {
@@ -160,7 +177,7 @@ impl Simulator {
             *outcome = self.table.get_outcome(i);
         }
 
-        self.process_outcomes(bets, &outcomes);
+        self.process_outcomes(processed, &outcomes);
         outcomes
     }
 
@@ -173,11 +190,9 @@ impl Simulator {
         for _ in 0..iter_max {
             let mut bets = Vec::new();
             for (i, strat) in self.strategies.iter().enumerate() {
-                let mut amt = 0;
                 for bet in strat.bet() {
-                    // TODO(matth2k): Can't always check amount upfront. Need to do it dynamically.
-                    if self.bankrolls[i].units() >= 2 * bet.units() + amt {
-                        amt += 2 * bet.units();
+                    if self.bankrolls[i].units() >= bet.units() {
+                        self.bankrolls[i] -= bet.clone();
                         bets.push((i, bet));
                     }
                 }

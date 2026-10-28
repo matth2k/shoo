@@ -259,6 +259,41 @@ impl Table {
         self.player_hand(player).busted()
     }
 
+    /// Returns the new hands after a player split
+    ///
+    /// # Panics
+    /// Panics if there are no cards currently dealt
+    /// Panics if the table runs out of spots
+    pub fn player_split(&mut self, player: usize) -> Option<(usize, usize)> {
+        if self.state != TableState::Dealt {
+            panic!("Cannot split when no cards are dealt");
+        }
+
+        if !self.player_hand(player).pairs() {
+            return None;
+        }
+
+        let mut other_spot = player + 1;
+        while !self.player_hands[other_spot].is_empty() {
+            other_spot += 1;
+        }
+
+        let cards: Vec<Card> = self.player_hands[player]
+            .clone()
+            .into_iter()
+            .collect::<Vec<_>>();
+        let first = cards[0];
+        let second = cards[1];
+        self.player_hands[player] = Hand::default();
+        self.player_hands[other_spot] = Hand::default();
+        self.player_hands[player].insert(first);
+        self.player_hands[player].insert(self.shoe.deal().unwrap());
+        self.player_hands[other_spot].insert(second);
+        self.player_hands[other_spot].insert(self.shoe.deal().unwrap());
+
+        Some((player, other_spot))
+    }
+
     /// The dealer hits. Also flips if not done.
     /// Returns true if the dealer busted.
     ///
