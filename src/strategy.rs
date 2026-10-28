@@ -132,7 +132,7 @@ impl Simulator {
                     && !hand.busted()
                 {
                     match self.strategies[*strat].decide(hand, upcard) {
-                        Decision::Double if self.bankrolls[*strat].units() >= bet.units() => {
+                        Decision::Double if self.bankrolls[*strat] >= *bet => {
                             self.bankrolls[*strat] -= bet.clone();
                             *bet = bet.clone() * 2;
                             self.table.player_hit(i);
@@ -142,7 +142,7 @@ impl Simulator {
                             break;
                         }
                         Decision::Split
-                            if self.bankrolls[*strat].units() >= bet.units()
+                            if self.bankrolls[*strat] >= *bet
                                 && let Some((_og, b)) = self.table.player_split(i) =>
                         {
                             self.bankrolls[*strat] -= bet.clone();
@@ -195,7 +195,7 @@ impl Simulator {
             let mut bets = Vec::new();
             for (i, strat) in self.strategies.iter().enumerate() {
                 for bet in strat.bet() {
-                    if self.bankrolls[i].units() >= bet.units() {
+                    if self.bankrolls[i] >= bet {
                         self.bankrolls[i] -= bet.clone();
                         bets.push((i, bet));
                     }
