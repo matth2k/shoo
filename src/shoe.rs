@@ -27,6 +27,7 @@ pub trait Counter {
 #[derive(Debug, Clone)]
 pub struct HiLoCounter {
     running_count: i32,
+    cards_left: usize,
     num_decks: usize,
 }
 
@@ -35,6 +36,7 @@ impl HiLoCounter {
     pub fn new(num_decks: usize) -> Self {
         Self {
             running_count: 0,
+            cards_left: num_decks * 52,
             num_decks,
         }
     }
@@ -47,14 +49,17 @@ impl Counter for HiLoCounter {
 
     fn clear(&mut self) {
         self.running_count = 0;
+        self.cards_left = self.num_decks * 52;
     }
 
     fn count(&self) -> f32 {
-        (self.running_count as f32) / (self.num_decks as f32)
+        let decks_remaining = (self.cards_left as f32) / 52.0;
+        (self.running_count as f32) / decks_remaining
     }
 
     fn insert(&mut self, card: Card) {
         self.running_count += card.count() as i32;
+        self.cards_left -= 1;
     }
 }
 

@@ -29,7 +29,7 @@ pub trait Strategy {
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision;
 
     /// Process the last outcome of the hand
-    fn process(&mut self, hand: &Hand, dealer: &Hand, outcome: Outcome);
+    fn process(&mut self, hands: &[Hand], dealer: &Hand, outcomes: &[Outcome]);
 
     /// Hook for when the cards are shuffled. This is useful for card counting strategies.
     fn shoe_shuffled(&mut self);
@@ -60,7 +60,7 @@ impl Simulator {
         max_penetration: f32,
     ) -> Self {
         let bankrolls = vec![bankroll];
-        let table = Table::new(num_decks, strategy.max_hands() * 2 + 1, max_penetration);
+        let table = Table::new(num_decks, strategy.max_hands() * 4, max_penetration);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         let strategies = vec![boxed];
         Self {
@@ -75,19 +75,17 @@ impl Simulator {
         self.bankrolls.push(bankroll);
         self.table = self
             .table
-            .new_like(self.table.num_spots() + strategy.max_hands() * 2 + 1);
+            .new_like(self.table.num_spots() + strategy.max_hands() * 4);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         self.strategies.push(boxed);
     }
 
     fn process_outcomes(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
-        for (i, ((strat, _bet), &outcome)) in bets.iter().zip(outcomes).enumerate() {
-            self.strategies[*strat].process(
-                self.table.player_hand(i),
-                self.table.dealer_hand(),
-                outcome,
-            );
+        let hands: Vec<Hand> = self.table.player_hands().cloned().collect();
+        for strat in &mut self.strategies {
+            strat.process(&hands, self.table.dealer_hand(), outcomes);
         }
+
         self.update_bankroll(bets, outcomes);
         self.table.clear_hands();
     }
@@ -139,7 +137,7 @@ impl Simulator {
                     && !hand.busted()
                 {
                     match self.strategies[*strat].decide(hand, upcard) {
-                        Decision::Double if self.bankrolls[*strat] >= *bet => {
+                        Decision::Double if hand.len() == 2 && self.bankrolls[*strat] >= *bet => {
                             self.bankrolls[*strat] -= bet.clone();
                             *bet = bet.clone() * 2;
                             self.table.player_hit(i);

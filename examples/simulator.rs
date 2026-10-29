@@ -18,7 +18,7 @@ impl Strategy for SometimesHit {
         }
     }
 
-    fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+    fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
 
@@ -42,11 +42,10 @@ impl Strategy for BasicStrategy {
         }
 
         match self.counter.as_ref().unwrap().count() {
-            c if c < 1.0 => vec![Bet::from(shoo::Chip::Five); 1],
-            c if c < 2.0 => vec![Bet::from(shoo::Chip::Five); 2],
-            c if c < 3.0 => vec![Bet::from(shoo::Chip::TwentyFive); 1],
-            c if c < 4.0 => vec![Bet::from(shoo::Chip::TwentyFive); 2],
-            c if c < 8.0 => vec![Bet::from(shoo::Chip::TwentyFive); 2],
+            c if c < 1.0 => vec![Bet::from(shoo::Chip::One); 1],
+            c if c < 2.0 => vec![Bet::from(shoo::Chip::Five) * 4; 2],
+            c if c < 3.0 => vec![Bet::from(shoo::Chip::Five) * 8; 2],
+            c if c < 12.0 => vec![Bet::from(shoo::Chip::Five) * 16; 2],
             _ => vec![Bet::from(shoo::Chip::Five); 1],
         }
     }
@@ -59,10 +58,13 @@ impl Strategy for BasicStrategy {
         if hand.is_soft() {
             match (val, upcard.values()[0]) {
                 (13 | 14, 5 | 6) => Decision::Double,
+                (13 | 14, _) => Decision::Hit,
                 (15 | 16, 4 | 5 | 6) => Decision::Double,
+                (15 | 16, _) => Decision::Hit,
+                (17, 1 | 10 | 9 | 8 | 7 | 2) => Decision::Hit,
                 (17, 3 | 4 | 5 | 6) => Decision::Double,
                 (18, 2 | 3 | 4 | 5 | 6) => Decision::Double,
-                (18, 9 | 10 | 11) => Decision::Hit,
+                (18, 9 | 10 | 1) => Decision::Hit,
                 (19, 6) => Decision::Double,
                 _ => Decision::Stand,
             }
@@ -97,8 +99,15 @@ impl Strategy for BasicStrategy {
         }
     }
 
-    fn process(&mut self, hand: &Hand, dealer: &Hand, _outcome: Outcome) {
-        for card in hand.into_iter().chain(dealer) {
+    fn process(&mut self, hands: &[Hand], dealer: &Hand, _outcomes: &[Outcome]) {
+        for hand in hands {
+            for card in hand.into_iter() {
+                if let Some(counter) = &mut self.counter {
+                    counter.insert(card);
+                }
+            }
+        }
+        for card in dealer.into_iter() {
             if let Some(counter) = &mut self.counter {
                 counter.insert(card);
             }
@@ -150,7 +159,7 @@ impl Strategy for SometimesHitTwo {
         }
     }
 
-    fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+    fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
 
@@ -174,7 +183,7 @@ impl Strategy for AlwaysStand {
         Decision::Stand
     }
 
-    fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+    fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
 
@@ -188,14 +197,14 @@ impl Strategy for AlwaysStand {
 }
 
 fn main() -> std::io::Result<()> {
-    let bankroll: Bet = Bet::from(10000);
-    let num_decks = 6;
+    let bankroll: Bet = Bet::from(100000);
+    let num_decks = 2;
     let mut trials = Vec::new();
     for _ in 0..20 {
-        let mut sim = Simulator::new(SometimesHitTwo, bankroll.clone(), num_decks, 0.5);
+        let mut sim = Simulator::new(SometimesHitTwo, bankroll.clone(), num_decks, 0.66);
         sim.insert(BasicStrategy::new(Some(num_decks)), bankroll.clone());
 
-        let res = sim.simulate(500000);
+        let res = sim.simulate(100000);
 
         trials.push(res);
     }
