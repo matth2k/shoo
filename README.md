@@ -10,7 +10,7 @@ This is a Rust library to assist in creating your own blackjack trainer or game.
 
 ![Counting versus ploppy](result.svg)
 
-This is with a $100k bankroll for both players. You can check out the [example code](examples/simulator.rs) for more detail on the exact betting.
+This is with a $100k bankroll for both players and a bet spread from $1-$160 dollars for the AP. You can check out the [example code](examples/simulator.rs) for more detail on the exact betting.
 
 ## Getting Started w/ The Data Types
 
