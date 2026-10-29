@@ -33,8 +33,6 @@ impl Display for Suit {
 /// Rank of a card
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Copy)]
 pub enum Rank {
-    /// 1/11
-    Ace,
     /// 2
     Two,
     /// 3
@@ -59,6 +57,8 @@ pub enum Rank {
     Queen,
     /// 10
     King,
+    /// 11/1
+    Ace,
 }
 
 impl Display for Rank {

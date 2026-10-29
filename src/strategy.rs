@@ -29,7 +29,10 @@ pub trait Strategy {
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision;
 
     /// Process the last outcome of the hand
-    fn process(&mut self, hand: &Hand, dealer: &Hand, outcome: Outcome);
+    fn process(&mut self, hands: &[Hand], dealer: &Hand, outcomes: &[Outcome]);
+
+    /// Hook for when the cards are shuffled. This is useful for card counting strategies.
+    fn shoe_shuffled(&mut self);
 
     /// Max number of hands this strategy ever uses
     fn max_hands(&self) -> usize;
@@ -57,7 +60,7 @@ impl Simulator {
         max_penetration: f32,
     ) -> Self {
         let bankrolls = vec![bankroll];
-        let table = Table::new(num_decks, strategy.max_hands() * 2, max_penetration);
+        let table = Table::new(num_decks, strategy.max_hands() * 4, max_penetration);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         let strategies = vec![boxed];
         Self {
@@ -72,19 +75,17 @@ impl Simulator {
         self.bankrolls.push(bankroll);
         self.table = self
             .table
-            .new_like(self.table.num_spots() + strategy.max_hands() * 2);
+            .new_like(self.table.num_spots() + strategy.max_hands() * 4);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         self.strategies.push(boxed);
     }
 
     fn process_outcomes(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
-        for (i, ((strat, _bet), &outcome)) in bets.iter().zip(outcomes).enumerate() {
-            self.strategies[*strat].process(
-                self.table.player_hand(i),
-                self.table.dealer_hand(),
-                outcome,
-            );
+        let hands: Vec<Hand> = self.table.player_hands().cloned().collect();
+        for strat in &mut self.strategies {
+            strat.process(&hands, self.table.dealer_hand(), outcomes);
         }
+
         self.update_bankroll(bets, outcomes);
         self.table.clear_hands();
     }
@@ -109,35 +110,39 @@ impl Simulator {
         }
 
         let k = bets.len();
-        self.table.deal_up_to(k);
+        if self.table.deal_up_to(k) {
+            for strat in self.strategies.iter_mut() {
+                strat.shoe_shuffled();
+            }
+        }
 
         if self.table.peek() {
             let outcomes: Vec<_> = (0..k).map(|i| self.table.get_outcome(i)).collect();
             self.process_outcomes(bets, &outcomes);
             return outcomes;
         }
-        let mut outcomes = vec![Outcome::Push; k];
 
         let upcard = self.table.upcard().unwrap();
 
         // Allocate each hand in order to a spot
         let mut bets: Vec<_> = bets.into_iter().enumerate().collect();
+        let mut outcomes = vec![Outcome::Push; bets.len()];
         let mut processed = Vec::new();
 
         for _ in 0..4 {
             let mut split_hands = Vec::new();
-            for (i, (strat, bet)) in bets.iter_mut() {
+            for (o, (i, (strat, bet))) in bets.iter_mut().enumerate() {
                 let i = *i;
                 while let hand = self.table.player_hand(i)
                     && !hand.busted()
                 {
                     match self.strategies[*strat].decide(hand, upcard) {
-                        Decision::Double if self.bankrolls[*strat] >= *bet => {
+                        Decision::Double if hand.len() == 2 && self.bankrolls[*strat] >= *bet => {
                             self.bankrolls[*strat] -= bet.clone();
                             *bet = bet.clone() * 2;
                             self.table.player_hit(i);
                             if self.table.player_hand(i).busted() {
-                                outcomes[i] = self.table.get_outcome(i);
+                                outcomes[o] = self.table.get_outcome(i);
                             }
                             break;
                         }
@@ -152,7 +157,7 @@ impl Simulator {
                         Decision::Hit | Decision::Double => {
                             self.table.player_hit(i);
                             if self.table.player_hand(i).busted() {
-                                outcomes[i] = self.table.get_outcome(i);
+                                outcomes[o] = self.table.get_outcome(i);
                             }
                         }
                         Decision::Stand | Decision::Split => break,
@@ -160,16 +165,20 @@ impl Simulator {
                 }
             }
 
-            processed.extend(bets.into_iter().map(|(_, b)| b));
+            processed.extend(bets.into_iter().zip(outcomes));
 
             if split_hands.is_empty() {
                 break;
             }
 
             bets = split_hands;
+            outcomes = vec![Outcome::Push; bets.len()];
         }
 
-        if outcomes.iter().any(|o| *o != Outcome::Lose) {
+        if processed
+            .iter()
+            .any(|((_spot, (_strat, _bet)), outcome)| *outcome != Outcome::Lose)
+        {
             while self.table.dealer_value().is_some_and(|v| v < 17) {
                 self.table.dealer_hit();
             }
@@ -177,9 +186,15 @@ impl Simulator {
 
         self.table.flip_hole();
 
-        for (i, outcome) in outcomes.iter_mut().enumerate() {
-            *outcome = self.table.get_outcome(i);
+        for ((spot, (_strat, _bet)), outcome) in processed.iter_mut() {
+            *outcome = self.table.get_outcome(*spot);
         }
+
+        let outcomes: Vec<_> = processed.iter().map(|(_, outcome)| *outcome).collect();
+        let processed: Vec<_> = processed
+            .into_iter()
+            .map(|((_spot, b), _outcome)| b)
+            .collect();
 
         self.process_outcomes(processed, &outcomes);
         outcomes

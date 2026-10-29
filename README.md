@@ -31,6 +31,8 @@ fn test_hand() {
 With the `Strategy` trait and `Simulator` struct, you can test and compare how strategies perform at the blackjack table. Let's try two different strategies: `AlwaysStand` and `SometimesHit`
 
 ```rust
+use shoo::strategy::{Decision, Strategy};
+use shoo::{Bet, Card, Hand, Rank, table::Outcome};
 pub struct AlwaysStand;
 
 impl Strategy for AlwaysStand {
@@ -42,7 +44,9 @@ impl Strategy for AlwaysStand {
         Decision::Stand
     }
 
-    fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+    fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
+
+    fn shoe_shuffled(&mut self) {}
 
     fn max_hands(&self) -> usize {
         2
@@ -66,19 +70,19 @@ impl Strategy for SometimesHit {
 
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
-            Some(11) | Some(10) if !matches!(upcard.rank(), shoo::Rank::Ace | shoo::Rank::Ten) => {
+            Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
                 Decision::Double
             }
-            Some(v) if v <= 16 && hand.pairs() && upcard.rank() <= shoo::Rank::Six => {
-                Decision::Split
-            }
+            Some(v) if v <= 16 && hand.is_pair() && upcard.rank() <= Rank::Six => Decision::Split,
             Some(v) if v <= 11 => Decision::Hit,
-            Some(v) if v <= 16 && upcard.rank() >= shoo::Rank::Seven => Decision::Hit,
+            Some(v) if v <= 16 && upcard.rank() >= Rank::Seven => Decision::Hit,
             _ => Decision::Stand,
         }
     }
 
-    fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+    fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
+
+    fn shoe_shuffled(&mut self) {}
 
     fn max_hands(&self) -> usize {
         2
@@ -93,6 +97,7 @@ impl Strategy for SometimesHit {
 If you want to simulate advantage play, a.k.a. card counting, you should add that within the `process()` hook. After every hand, the strategy can inspect the winning/losing hands and the dealer hand. Here you would consume the individual cards and add them to the running count. It is as simple as adding a card counter member field. You can even vary how many hands you want to play in `bet()`. I will leave those strategy implementations as an exercise to the reader. Lastly, you can simulate these strategies at a table:
 
 ```rust
+use shoo::strategy::Simulator;
 // Bankroll of 10k units
 let bankroll: Bet = Bet::from(10000);
 // Create a simulator with an inital strategy, bankroll, number of decks, and deck penetration
