@@ -59,11 +59,11 @@ impl Strategy for BasicStrategy {
             match (val, upcard.values()[0]) {
                 (13 | 14, 5 | 6) => Decision::Double,
                 (13 | 14, _) => Decision::Hit,
-                (15 | 16, 4 | 5 | 6) => Decision::Double,
+                (15 | 16, 4..=6) => Decision::Double,
                 (15 | 16, _) => Decision::Hit,
                 (17, 1 | 10 | 9 | 8 | 7 | 2) => Decision::Hit,
-                (17, 3 | 4 | 5 | 6) => Decision::Double,
-                (18, 2 | 3 | 4 | 5 | 6) => Decision::Double,
+                (17, 3..=6) => Decision::Double,
+                (18, 2..=6) => Decision::Double,
                 (18, 9 | 10 | 1) => Decision::Hit,
                 (19, 6) => Decision::Double,
                 _ => Decision::Stand,
@@ -71,14 +71,14 @@ impl Strategy for BasicStrategy {
         } else if hand.is_pair() {
             match (val, upcard.values()[0]) {
                 (6 | 4, 1 | 10 | 9 | 8) => Decision::Hit,
-                (6 | 4, 2 | 3 | 4 | 5 | 6 | 7) => Decision::Split,
+                (6 | 4, 2..=7) => Decision::Split,
                 (8, 1 | 10 | 9 | 8 | 7 | 4 | 3 | 2) => Decision::Hit,
                 (8, 5 | 6) => Decision::Split,
-                (10, 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9) => Decision::Split,
+                (10, 2..=9) => Decision::Split,
                 (10, 1 | 10) => Decision::Hit,
                 (12, 1 | 10 | 9 | 8 | 7) if !hand.first().unwrap().is_ace() => Decision::Hit,
-                (12, 2 | 3 | 4 | 5 | 6) if !hand.first().unwrap().is_ace() => Decision::Split,
-                (14, 2 | 3 | 4 | 5 | 6 | 7) => Decision::Split,
+                (12, 2..=6) if !hand.first().unwrap().is_ace() => Decision::Split,
+                (14, 2..=7) => Decision::Split,
                 (14, 1 | 10 | 9 | 8) => Decision::Hit,
                 (16, _) => Decision::Split,
                 (18, 9 | 8 | 6 | 5 | 4 | 3 | 2) => Decision::Split,
@@ -87,12 +87,12 @@ impl Strategy for BasicStrategy {
             }
         } else {
             match (val, upcard.values()[0]) {
-                (16 | 15 | 14 | 13 | 12, 1 | 10 | 9 | 8 | 7) => Decision::Hit,
+                (12..=16, 1 | 10 | 9 | 8 | 7) => Decision::Hit,
                 (12, 3 | 2) => Decision::Hit,
                 (11, _) => Decision::Double,
-                (10, 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2) => Decision::Double,
+                (10, 2..=9) => Decision::Double,
                 (10, 1 | 10) => Decision::Hit,
-                (9, 6 | 5 | 4 | 3) => Decision::Double,
+                (9, 3..=6) => Decision::Double,
                 (v, _) if v <= 9 => Decision::Hit,
                 _ => Decision::Stand,
             }
@@ -132,10 +132,7 @@ impl Strategy for BasicStrategy {
 impl BasicStrategy {
     pub fn new(num_decks: Option<usize>) -> Self {
         Self {
-            counter: match num_decks {
-                Some(n) => Some(HiLoCounter::new(n)),
-                None => None,
-            },
+            counter: num_decks.map(HiLoCounter::new),
         }
     }
 }
