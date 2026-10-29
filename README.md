@@ -73,7 +73,9 @@ impl Strategy for SometimesHit {
             Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
                 Decision::Double
             }
-            Some(v) if v <= 16 && hand.is_pair() && upcard.rank() <= Rank::Six => Decision::Split,
+            Some(v) if v <= 16 && hand.is_pair() && upcard.rank() <= Rank::Six => {
+                Decision::Split
+            }
             Some(v) if v <= 11 => Decision::Hit,
             Some(v) if v <= 16 && upcard.rank() >= Rank::Seven => Decision::Hit,
             _ => Decision::Stand,
@@ -100,7 +102,7 @@ If you want to simulate advantage play, a.k.a. card counting, you should add tha
 use shoo::strategy::Simulator;
 // Bankroll of 10k units
 let bankroll: Bet = Bet::from(10000);
-// Create a simulator with an inital strategy, bankroll, number of decks, and deck penetration
+// Create a simulator with a strategy, bankroll, number decks, and deck penetration
 let mut simulator = Simulator::new(AlwaysStand, bankroll.clone(), 6, 0.5);
 // Add a second strategy with its own bankroll
 sim.insert(SometimesHitTwo, bankroll);
