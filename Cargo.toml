@@ -16,6 +16,7 @@ include = [
     "LICENSE-MIT",
     "LICENSE-APACHE",
     "README.md",
+    "result.svg",
     "src/**/*.rs",
     "tests/**/*.rs",
     "examples/**/*.rs",
