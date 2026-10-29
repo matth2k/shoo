@@ -8,9 +8,9 @@
 
 A Rust library to assist in creating your own blackjack trainer or game.
 
-## Getting Started
+## Getting Started w/ The Data Types
 
-Below is a minimal example to get you started:
+Below is a minimal example just to get you started with manipulating blackjack hands:
 
 ```rust
 use shoo::{Card, Hand, Rank, Suit};
