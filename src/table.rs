@@ -269,7 +269,7 @@ impl Table {
             panic!("Cannot split when no cards are dealt");
         }
 
-        if !self.player_hand(player).pairs() {
+        if !self.player_hand(player).is_pair() {
             return None;
         }
 

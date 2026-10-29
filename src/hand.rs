@@ -165,7 +165,7 @@ impl Hand {
     }
 
     /// Returns true if the hand is a pair (can split)
-    pub fn pairs(&self) -> bool {
+    pub fn is_pair(&self) -> bool {
         self.cards.len() == 2 && self.cards[0].rank() == self.cards[1].rank()
     }
 

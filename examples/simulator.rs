@@ -1,5 +1,5 @@
 use shoo::strategy::{Decision, Simulator, Strategy};
-use shoo::{Bet, Card, Hand, table::Outcome};
+use shoo::{Bet, Card, Counter, Hand, HiLoCounter, Rank, table::Outcome};
 
 pub struct SometimesHit;
 
@@ -10,7 +10,7 @@ impl Strategy for SometimesHit {
 
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
-            Some(11) | Some(10) if !matches!(upcard.rank(), shoo::Rank::Ace | shoo::Rank::Ten) => {
+            Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
                 Decision::Double
             }
             Some(v) if v <= 11 => Decision::Hit,
@@ -20,12 +20,114 @@ impl Strategy for SometimesHit {
 
     fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
 
+    fn shoe_shuffled(&mut self) {}
+
     fn max_hands(&self) -> usize {
         2
     }
 
     fn name(&self) -> String {
         "SometimesHit".to_string()
+    }
+}
+
+pub struct BasicStrategy {
+    counter: Option<HiLoCounter>,
+}
+
+impl Strategy for BasicStrategy {
+    fn bet(&self) -> Vec<Bet> {
+        if self.counter.is_none() {
+            return vec![Bet::from(shoo::Chip::Five); 1];
+        }
+
+        match self.counter.as_ref().unwrap().count() {
+            c if c < 1.0 => vec![Bet::from(shoo::Chip::Five); 1],
+            c if c < 2.0 => vec![Bet::from(shoo::Chip::Five); 2],
+            c if c < 3.0 => vec![Bet::from(shoo::Chip::TwentyFive); 1],
+            c if c < 4.0 => vec![Bet::from(shoo::Chip::TwentyFive); 2],
+            c if c < 8.0 => vec![Bet::from(shoo::Chip::TwentyFive); 2],
+            _ => vec![Bet::from(shoo::Chip::Five); 1],
+        }
+    }
+
+    fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
+        if hand.value().is_none() {
+            return Decision::Stand;
+        }
+        let val = hand.value().unwrap();
+        if hand.is_soft() {
+            match (val, upcard.values()[0]) {
+                (13 | 14, 5 | 6) => Decision::Double,
+                (15 | 16, 4 | 5 | 6) => Decision::Double,
+                (17, 3 | 4 | 5 | 6) => Decision::Double,
+                (18, 2 | 3 | 4 | 5 | 6) => Decision::Double,
+                (18, 9 | 10 | 11) => Decision::Hit,
+                (19, 6) => Decision::Double,
+                _ => Decision::Stand,
+            }
+        } else if hand.is_pair() {
+            match (val, upcard.values()[0]) {
+                (6 | 4, 1 | 10 | 9 | 8) => Decision::Hit,
+                (6 | 4, 2 | 3 | 4 | 5 | 6 | 7) => Decision::Split,
+                (8, 1 | 10 | 9 | 8 | 7 | 4 | 3 | 2) => Decision::Hit,
+                (8, 5 | 6) => Decision::Split,
+                (10, 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9) => Decision::Split,
+                (10, 1 | 10) => Decision::Hit,
+                (12, 1 | 10 | 9 | 8 | 7) if !hand.first().unwrap().is_ace() => Decision::Hit,
+                (12, 2 | 3 | 4 | 5 | 6) if !hand.first().unwrap().is_ace() => Decision::Split,
+                (14, 2 | 3 | 4 | 5 | 6 | 7) => Decision::Split,
+                (14, 1 | 10 | 9 | 8) => Decision::Hit,
+                (16, _) => Decision::Split,
+                (18, 9 | 8 | 6 | 5 | 4 | 3 | 2) => Decision::Split,
+                _ if hand.first().unwrap().is_ace() => Decision::Split,
+                _ => Decision::Stand,
+            }
+        } else {
+            match (val, upcard.values()[0]) {
+                (16 | 15 | 14 | 13 | 12, 1 | 10 | 9 | 8 | 7) => Decision::Hit,
+                (12, 3 | 2) => Decision::Hit,
+                (11, _) => Decision::Double,
+                (10, 9 | 8 | 7 | 6 | 5 | 4 | 3 | 2) => Decision::Double,
+                (10, 1 | 10) => Decision::Hit,
+                (9, 6 | 5 | 4 | 3) => Decision::Double,
+                (v, _) if v <= 9 => Decision::Hit,
+                _ => Decision::Stand,
+            }
+        }
+    }
+
+    fn process(&mut self, hand: &Hand, dealer: &Hand, _outcome: Outcome) {
+        for card in hand.into_iter().chain(dealer) {
+            if let Some(counter) = &mut self.counter {
+                counter.insert(card);
+            }
+        }
+    }
+
+    fn shoe_shuffled(&mut self) {
+        if let Some(counter) = &mut self.counter {
+            counter.clear();
+        }
+    }
+
+    fn max_hands(&self) -> usize {
+        2
+    }
+
+    fn name(&self) -> String {
+        "BasicStrategy".to_string()
+    }
+}
+
+impl BasicStrategy {
+    pub fn new(num_decks: Option<usize>) -> Self {
+        Self {
+            counter: match num_decks {
+                Some(n) => Some(HiLoCounter::new(n)),
+                None => None,
+            },
+        }
     }
 }
 
@@ -38,19 +140,19 @@ impl Strategy for SometimesHitTwo {
 
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
-            Some(11) | Some(10) if !matches!(upcard.rank(), shoo::Rank::Ace | shoo::Rank::Ten) => {
+            Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
                 Decision::Double
             }
-            Some(v) if v <= 16 && hand.pairs() && upcard.rank() <= shoo::Rank::Six => {
-                Decision::Split
-            }
+            Some(v) if v <= 16 && hand.is_pair() && upcard.rank() <= Rank::Six => Decision::Split,
             Some(v) if v <= 11 => Decision::Hit,
-            Some(v) if v <= 16 && upcard.rank() >= shoo::Rank::Seven => Decision::Hit,
+            Some(v) if v <= 16 && upcard.rank() >= Rank::Seven => Decision::Hit,
             _ => Decision::Stand,
         }
     }
 
     fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
+
+    fn shoe_shuffled(&mut self) {}
 
     fn max_hands(&self) -> usize {
         2
@@ -74,6 +176,8 @@ impl Strategy for AlwaysStand {
 
     fn process(&mut self, _hand: &Hand, _dealer: &Hand, _outcome: Outcome) {}
 
+    fn shoe_shuffled(&mut self) {}
+
     fn max_hands(&self) -> usize {
         2
     }
@@ -85,12 +189,13 @@ impl Strategy for AlwaysStand {
 
 fn main() -> std::io::Result<()> {
     let bankroll: Bet = Bet::from(10000);
+    let num_decks = 6;
     let mut trials = Vec::new();
     for _ in 0..20 {
-        let mut sim = Simulator::new(SometimesHit, bankroll.clone(), 6, 0.5);
-        sim.insert(SometimesHitTwo, bankroll.clone());
+        let mut sim = Simulator::new(SometimesHitTwo, bankroll.clone(), num_decks, 0.5);
+        sim.insert(BasicStrategy::new(Some(num_decks)), bankroll.clone());
 
-        let res = sim.simulate(50000);
+        let res = sim.simulate(500000);
 
         trials.push(res);
     }
