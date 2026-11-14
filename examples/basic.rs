@@ -13,7 +13,7 @@ fn main() -> std::io::Result<()> {
     let max_penetration = 0.40;
 
     println!("Num decks: {num_decks} Max Pen: {max_penetration} \n\r\n");
-    let mut table = Table::new(num_decks, 1, max_penetration);
+    let mut table = Table::new(num_decks, max_penetration, None);
     let mut last_outcome = Some(Outcome::Push);
     loop {
         if let Event::Key(key_event) = read()? {
@@ -25,7 +25,8 @@ fn main() -> std::io::Result<()> {
                 KeyCode::Right => {
                     match last_outcome {
                         Some(_) => {
-                            if table.deal_all() {
+                            table.get_spot();
+                            if table.deal() {
                                 println!("\rShoe reshuffled!            ");
                             }
                             if table.peek() {
@@ -90,7 +91,7 @@ fn main() -> std::io::Result<()> {
                         Outcome::Push => {
                             print!("\rPush!                              ");
                         }
-                        Outcome::Lose => {
+                        Outcome::Lose | Outcome::Forfeit => {
                             print!("\rYou lose!                          ");
                         }
                     };

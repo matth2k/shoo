@@ -5,6 +5,8 @@
 */
 
 use crate::{card::Card, hand::Hand, shoe::Shoe};
+use rand::rng;
+use rand_distr::{Distribution, Normal};
 use std::fmt::Display;
 
 /// Represents the outcome of a hand
@@ -18,6 +20,8 @@ pub enum Outcome {
     Lose,
     /// A push
     Push,
+    /// A surrendered hand
+    Forfeit,
 }
 
 /// Represents the state of the table
@@ -42,6 +46,10 @@ pub struct Table {
     shoe: Shoe,
     /// The max deck penetration before reshuffle
     max_penetration: f32,
+    /// The current deck penetration
+    penetration: f32,
+    /// Simulate randomness of cutting the cards
+    pen_dev: Option<f32>,
     /// The number of decks to play with
     num_decks: usize,
     /// State of the table
@@ -49,32 +57,36 @@ pub struct Table {
 }
 
 impl Table {
-    /// Creates a new blackjack table with `num_decks` decks and `num_spots` bettings spots and `max_penetration` (from 0.0-1.0 before shuffling)
-    pub fn new(num_decks: usize, num_spots: usize, max_penetration: f32) -> Self {
+    fn gen_pen(max_pen: f32, pen_dev: Option<f32>) -> f32 {
+        let val = if let Some(dev) = pen_dev {
+            let mut rng = rng();
+            let normal = Normal::new(max_pen, dev).expect("Failed to create normal distribution");
+            normal.sample(&mut rng)
+        } else {
+            max_pen
+        };
+        val.clamp(0.0, 0.85)
+    }
+
+    /// Creates a new blackjack table with a certain number of decks, penetration, and penetration variance
+    pub fn new(num_decks: usize, max_penetration: f32, pen_dev: Option<f32>) -> Self {
         // Uses hi-lo strategy
         let shoe = Shoe::new(num_decks);
-        let player_hands = vec![Hand::default(); num_spots];
+        let player_hands = Vec::new();
         let dealer = Hand::default();
 
-        let max_penetration = max_penetration.clamp(0.0, 1.0);
+        let penetration = Self::gen_pen(max_penetration, pen_dev);
 
         Self {
             dealer,
             player_hands,
             shoe,
             max_penetration,
+            penetration,
+            pen_dev,
             num_decks,
             state: TableState::Open,
         }
-    }
-
-    /// Creates a new blackjack table at the current state but with a different number of spots
-    pub fn new_like(&self, num_spots: usize) -> Self {
-        let mut other = self.clone();
-        for _ in 0..num_spots {
-            other.player_hands.push(Hand::default());
-        }
-        other
     }
 
     /// Resets the table
@@ -88,9 +100,8 @@ impl Table {
 
         self.shoe = Shoe::new(self.num_decks);
         self.dealer = Hand::default();
-        for player in &mut self.player_hands {
-            *player = Hand::default();
-        }
+        self.player_hands.clear();
+        self.penetration = Self::gen_pen(self.max_penetration, self.pen_dev);
     }
 
     /// Clears all hands from the table
@@ -102,65 +113,52 @@ impl Table {
             panic!("Cannot clear hands before dealer has flipped");
         }
         self.dealer = Hand::default();
-        for player in &mut self.player_hands {
-            *player = Hand::default();
-        }
+        self.player_hands.clear();
         self.state = TableState::Open;
     }
 
-    /// Deal the betting spots in `spots` and the dealer.
+    /// Mark a betting spot as active for this round
+    ///
+    /// # Panics
+    /// Panics if there are cards currently dealt
+    pub fn get_spot(&mut self) -> usize {
+        if self.state != TableState::Open {
+            panic!("Cannot take spot when hands are currently on the table");
+        }
+        self.player_hands.push(Hand::default());
+        self.player_hands.len() - 1
+    }
+
+    /// Deal the active betting spots and the dealer.
     /// Returns true if dealing prompted the shoe to reshuffle.
     ///
     /// # Panics
     /// Panics if there are already cards dealt on the table
-    pub fn deal(&mut self, spots: &[usize]) -> bool {
+    pub fn deal(&mut self) -> bool {
         if self.state != TableState::Open {
             panic!("Cannot deal when hands are currently on the table");
         }
-
-        let mut spots = spots.to_vec();
-        spots.sort();
-        spots.dedup();
 
         for player in &self.player_hands {
             debug_assert!(player.is_empty());
         }
 
-        let reshuffle = self.shoe.penetration() > self.max_penetration;
+        let reshuffle = self.shoe.penetration() > self.penetration;
         if reshuffle {
+            self.penetration = Self::gen_pen(self.max_penetration, self.pen_dev);
             self.shoe = Shoe::new(self.num_decks);
         }
 
         self.state = TableState::Dealt;
 
         for _ in 0..2 {
-            for &player in &spots {
-                self.player_hands[player].insert(self.shoe.deal().unwrap());
+            for player in &mut self.player_hands {
+                player.insert(self.shoe.deal().unwrap());
             }
             self.dealer.insert(self.shoe.deal().unwrap());
         }
 
         reshuffle
-    }
-
-    /// Deal the initial hands for the first `k` spots and the dealer.
-    /// Returns true if dealing prompted the shoe to reshuffle.
-    ///
-    /// # Panics
-    /// Panics if there are already cards dealt on the table
-    /// Panics if k is out of range
-    pub fn deal_up_to(&mut self, k: usize) -> bool {
-        let all = (0..k).collect::<Vec<_>>();
-        self.deal(&all)
-    }
-
-    /// Deal the initial hands for all player spots and the dealer.
-    /// Returns true if dealing prompted the shoe to reshuffle.
-    ///
-    /// # Panics
-    /// Panics if there are already cards dealt on the table
-    pub fn deal_all(&mut self) -> bool {
-        self.deal_up_to(self.player_hands.len())
     }
 
     /// Returns true if the dealer has blackjack
@@ -186,8 +184,17 @@ impl Table {
     }
 
     /// Returns a reference to the hand of player `player`
-    pub fn player_hand(&self, player: usize) -> &Hand {
-        &self.player_hands[player]
+    ///
+    /// # Panics
+    /// Panics if there are no cards currently dealt
+    pub fn player_hand(&mut self, player: usize) -> &Hand {
+        let hand: &mut Hand = &mut self.player_hands[player];
+
+        // Deal the card after split
+        if self.state == TableState::Dealt && hand.len() == 1 {
+            hand.insert(self.shoe.deal().unwrap());
+        }
+        hand
     }
 
     /// Returns a reference to the hand of the dealer
@@ -202,7 +209,7 @@ impl Table {
     }
 
     /// Get the outcome for a player's hand
-    pub fn get_outcome(&self, player: usize) -> Outcome {
+    pub fn get_outcome(&mut self, player: usize) -> Outcome {
         debug_assert!(if let Some(v) = self.dealer.value()
             && v < 17
         {
@@ -263,7 +270,6 @@ impl Table {
     ///
     /// # Panics
     /// Panics if there are no cards currently dealt
-    /// Panics if the table runs out of spots
     pub fn player_split(&mut self, player: usize) -> Option<(usize, usize)> {
         if self.state != TableState::Dealt {
             panic!("Cannot split when no cards are dealt");
@@ -273,10 +279,7 @@ impl Table {
             return None;
         }
 
-        let mut other_spot = player + 1;
-        while !self.player_hands[other_spot].is_empty() {
-            other_spot += 1;
-        }
+        let other_spot = self.player_hands.len();
 
         let cards: Vec<Card> = self.player_hands[player]
             .clone()
@@ -285,11 +288,9 @@ impl Table {
         let first = cards[0];
         let second = cards[1];
         self.player_hands[player] = Hand::default();
-        self.player_hands[other_spot] = Hand::default();
+        self.player_hands.push(Hand::default());
         self.player_hands[player].insert(first);
-        self.player_hands[player].insert(self.shoe.deal().unwrap());
         self.player_hands[other_spot].insert(second);
-        self.player_hands[other_spot].insert(self.shoe.deal().unwrap());
 
         Some((player, other_spot))
     }
@@ -335,7 +336,7 @@ impl Table {
         self.state = TableState::Flipped;
     }
 
-    /// Returns the number of spots at the table
+    /// Returns the number of active spots at the table
     pub fn num_spots(&self) -> usize {
         self.player_hands.len()
     }

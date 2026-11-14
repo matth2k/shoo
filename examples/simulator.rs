@@ -1,4 +1,4 @@
-use shoo::strategy::{Decision, Simulator, Strategy};
+use shoo::strategy::{Decision, Rules, Simulator, Strategy};
 use shoo::{Bet, Card, Counter, Hand, HiLoCounter, Rank, table::Outcome};
 
 pub struct SometimesHit;
@@ -100,15 +100,13 @@ impl Strategy for BasicStrategy {
     }
 
     fn process(&mut self, hands: &[Hand], dealer: &Hand, _outcomes: &[Outcome]) {
-        for hand in hands {
-            for card in hand.into_iter() {
-                if let Some(counter) = &mut self.counter {
+        if let Some(counter) = &mut self.counter {
+            for hand in hands {
+                for card in hand.into_iter() {
                     counter.insert(card);
                 }
             }
-        }
-        for card in dealer.into_iter() {
-            if let Some(counter) = &mut self.counter {
+            for card in dealer.into_iter() {
                 counter.insert(card);
             }
         }
@@ -196,9 +194,30 @@ impl Strategy for AlwaysStand {
 fn main() -> std::io::Result<()> {
     let bankroll: Bet = Bet::from(100000);
     let num_decks = 2;
+    let rules = Rules {
+        s17: true,
+        num_decks,
+        penetration: 0.66,
+        random_penetration: false,
+        splittable: vec![
+            Rank::Ace,
+            Rank::Two,
+            Rank::Three,
+            Rank::Four,
+            Rank::Five,
+            Rank::Six,
+            Rank::Seven,
+            Rank::Eight,
+            Rank::Nine,
+            Rank::Ten,
+        ],
+        doubleable: vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        late_surrender: false,
+    };
+
     let mut trials = Vec::new();
     for _ in 0..20 {
-        let mut sim = Simulator::new(SometimesHitTwo, bankroll.clone(), num_decks, 0.66);
+        let mut sim = Simulator::new(SometimesHitTwo, bankroll.clone(), rules.clone());
         sim.insert(BasicStrategy::new(Some(num_decks)), bankroll.clone());
 
         let res = sim.simulate(100000);

@@ -6,7 +6,7 @@
 
 ## Description
 
-This is a Rust library to assist in creating your own blackjack trainer or game. For example, I was able to recreate some basic evidence evidence that card counting works:
+This is a Rust library to assist in creating your own blackjack trainer or game. For example, I was able to recreate some basic evidence that card counting works:
 
 ![Counting versus ploppy](result.svg)
 
