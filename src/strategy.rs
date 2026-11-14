@@ -5,7 +5,7 @@
 */
 
 use crate::table::{Outcome, Table};
-use crate::{Bet, Card, Hand};
+use crate::{Bet, Card, Hand, Rank};
 
 /// The action a blackjack player can take
 #[derive(Debug, Clone, PartialEq, Eq, Copy)]
@@ -18,6 +18,52 @@ pub enum Decision {
     Double,
     /// Split
     Split,
+    /// Surrender
+    Surrender,
+}
+
+/// Variant of blackjack
+#[derive(Debug, Clone, PartialEq)]
+pub struct Rules {
+    /// The number of decks in the shoe
+    pub num_decks: usize,
+    /// Stand on all seventeens
+    pub s17: bool,
+    /// Deck penetration (0.0-0.85)
+    pub penetration: f32,
+    /// penetration is normally random
+    pub random_penetration: bool,
+    /// Late surrender is offered
+    pub late_surrender: bool,
+    /// The splittable cards
+    pub splittable: Vec<Rank>,
+    /// Hands that can be doubled
+    pub doubleable: Vec<u8>,
+}
+
+impl Default for Rules {
+    fn default() -> Self {
+        Self {
+            num_decks: 6,
+            s17: true,
+            penetration: 0.75,
+            random_penetration: true,
+            late_surrender: true,
+            splittable: vec![
+                Rank::Ace,
+                Rank::Two,
+                Rank::Three,
+                Rank::Four,
+                Rank::Five,
+                Rank::Six,
+                Rank::Seven,
+                Rank::Eight,
+                Rank::Nine,
+                Rank::Ten,
+            ],
+            doubleable: vec![9, 10, 11],
+        }
+    }
 }
 
 /// Decisions needed to play blackjack
@@ -49,39 +95,43 @@ pub struct Simulator {
     bankrolls: Vec<Bet>,
     /// The blackjack table to play on
     table: Table,
+    /// The rules of the game
+    rules: Rules,
 }
 
 impl Simulator {
     /// Create a new simulator with the given strategy and bankroll
-    pub fn new<S: Strategy + 'static>(
-        strategy: S,
-        bankroll: Bet,
-        num_decks: usize,
-        max_penetration: f32,
-    ) -> Self {
+    pub fn new<S: Strategy + 'static>(strategy: S, bankroll: Bet, rules: Rules) -> Self {
         let bankrolls = vec![bankroll];
-        let table = Table::new(num_decks, strategy.max_hands() * 4, max_penetration);
+        let pen_dev = if rules.random_penetration {
+            Some(0.1)
+        } else {
+            None
+        };
+        let table = Table::new(rules.num_decks, rules.penetration, pen_dev);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         let strategies = vec![boxed];
         Self {
             strategies,
             bankrolls,
             table,
+            rules,
         }
     }
 
     /// Add an additional strategy to the simulator
     pub fn insert<S: Strategy + 'static>(&mut self, strategy: S, bankroll: Bet) {
         self.bankrolls.push(bankroll);
-        self.table = self
-            .table
-            .new_like(self.table.num_spots() + strategy.max_hands() * 4);
         let boxed: Box<dyn Strategy> = Box::new(strategy);
         self.strategies.push(boxed);
     }
 
-    fn process_outcomes(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
-        let hands: Vec<Hand> = self.table.player_hands().cloned().collect();
+    /// Update the bankroll and let strategies process the outcomes
+    fn process_outcomes(&mut self, spots: &[usize], bets: Vec<(usize, Bet)>, outcomes: &[Outcome]) {
+        let hands: Vec<Hand> = spots
+            .iter()
+            .map(|s| self.table.player_hand(*s).clone())
+            .collect();
         for strat in &mut self.strategies {
             strat.process(&hands, self.table.dealer_hand(), outcomes);
         }
@@ -91,7 +141,7 @@ impl Simulator {
     }
 
     /// Add or subtract for the bankrolls
-    fn update_bankroll(&mut self, bets: Vec<(usize, Bet)>, outcomes: &Vec<Outcome>) {
+    fn update_bankroll(&mut self, bets: Vec<(usize, Bet)>, outcomes: &[Outcome]) {
         for ((strat, bet), &outcome) in bets.into_iter().zip(outcomes) {
             let double = bet.clone() * 2;
             match outcome {
@@ -99,104 +149,129 @@ impl Simulator {
                 Outcome::Lose => {}
                 Outcome::Blackjack => self.bankrolls[strat] += double + (bet / 2),
                 Outcome::Push => self.bankrolls[strat] += bet,
+                Outcome::Forfeit => self.bankrolls[strat] += bet / 2,
             }
         }
     }
 
     /// Run a single iteration with a set of bets. Returns the outcomes of the hands.
-    fn run_hand(&mut self, bets: Vec<(usize, Bet)>) -> Vec<Outcome> {
+    fn run_hand(&mut self, mut bets: Vec<(usize, Bet)>) -> Vec<Outcome> {
         if bets.is_empty() {
             return Vec::new();
         }
 
-        let k = bets.len();
-        if self.table.deal_up_to(k) {
+        // Register the initial bettingspots
+        let mut spots: Vec<usize> = bets
+            .iter()
+            .map(|_| self.table.get_spot())
+            .collect::<Vec<_>>();
+
+        if self.table.deal() {
             for strat in self.strategies.iter_mut() {
                 strat.shoe_shuffled();
             }
         }
 
         if self.table.peek() {
-            let outcomes: Vec<_> = (0..k).map(|i| self.table.get_outcome(i)).collect();
-            self.process_outcomes(bets, &outcomes);
+            let outcomes: Vec<_> = spots.iter().map(|&i| self.table.get_outcome(i)).collect();
+            self.process_outcomes(&spots, bets, &outcomes);
             return outcomes;
         }
 
         let upcard = self.table.upcard().unwrap();
+        let mut outcomes = vec![Outcome::Push; self.table.num_spots()];
+        let mut starting_spot = 0;
 
-        // Allocate each hand in order to a spot
-        let mut bets: Vec<_> = bets.into_iter().enumerate().collect();
-        let mut outcomes = vec![Outcome::Push; bets.len()];
-        let mut processed = Vec::new();
+        'outer: loop {
+            let mut new_bets = Vec::new();
+            let mut new_spots: Vec<usize> = Vec::new();
 
-        for _ in 0..4 {
-            let mut split_hands = Vec::new();
-            for (o, (i, (strat, bet))) in bets.iter_mut().enumerate() {
-                let i = *i;
-                while let hand = self.table.player_hand(i)
+            debug_assert_eq!(spots.len(), outcomes.len());
+            debug_assert_eq!(spots.len(), bets.len());
+
+            'inner: for (k, (((strat, bet), outcome), spot)) in bets
+                .iter_mut()
+                .zip(outcomes.iter_mut())
+                .zip(spots.iter())
+                .enumerate()
+                .skip(starting_spot)
+            {
+                'deciding: while let hand = self.table.player_hand(*spot)
                     && !hand.busted()
                 {
                     match self.strategies[*strat].decide(hand, upcard) {
-                        Decision::Double if hand.len() == 2 && self.bankrolls[*strat] >= *bet => {
+                        Decision::Double
+                            if hand.len() == 2
+                                && self.bankrolls[*strat] >= *bet
+                                && let Some(v) = hand.value()
+                                && self.rules.doubleable.contains(&v) =>
+                        {
                             self.bankrolls[*strat] -= bet.clone();
                             *bet = bet.clone() * 2;
-                            self.table.player_hit(i);
-                            if self.table.player_hand(i).busted() {
-                                outcomes[o] = self.table.get_outcome(i);
+                            self.table.player_hit(*spot);
+                            if self.table.player_hand(*spot).busted() {
+                                *outcome = self.table.get_outcome(*spot);
                             }
-                            break;
+                            break 'deciding;
+                        }
+                        Decision::Surrender if hand.len() == 2 && self.rules.late_surrender => {
+                            *outcome = Outcome::Forfeit;
+                            break 'deciding;
                         }
                         Decision::Split
                             if self.bankrolls[*strat] >= *bet
-                                && let Some((_og, b)) = self.table.player_split(i) =>
+                                && let Some(front) = hand.first()
+                                && self.rules.splittable.contains(&front.rank())
+                                && let Some((_, other)) = self.table.player_split(*spot) =>
                         {
                             self.bankrolls[*strat] -= bet.clone();
-                            let new_bet = (b, (*strat, bet.clone()));
-                            split_hands.push(new_bet);
+                            new_spots.push(other);
+                            new_bets.push((*strat, bet.clone()));
+                            starting_spot = k;
+                            break 'inner;
                         }
-                        Decision::Hit | Decision::Double => {
-                            self.table.player_hit(i);
-                            if self.table.player_hand(i).busted() {
-                                outcomes[o] = self.table.get_outcome(i);
+                        Decision::Hit | Decision::Double | Decision::Surrender => {
+                            self.table.player_hit(*spot);
+                            if self.table.player_hand(*spot).busted() {
+                                *outcome = self.table.get_outcome(*spot);
                             }
                         }
-                        Decision::Stand | Decision::Split => break,
+                        Decision::Stand | Decision::Split => {
+                            break 'deciding;
+                        }
                     }
                 }
             }
 
-            processed.extend(bets.into_iter().zip(outcomes));
-
-            if split_hands.is_empty() {
-                break;
+            if new_bets.is_empty() {
+                break 'outer;
             }
 
-            bets = split_hands;
-            outcomes = vec![Outcome::Push; bets.len()];
+            let insert_index = starting_spot + 1;
+            for _ in 0..new_bets.len() {
+                outcomes.insert(insert_index, Outcome::Push);
+            }
+            bets.splice(insert_index..insert_index, new_bets);
+            spots.splice(insert_index..insert_index, new_spots);
         }
 
-        if processed
+        self.table.flip_hole();
+        if outcomes
             .iter()
-            .any(|((_spot, (_strat, _bet)), outcome)| *outcome != Outcome::Lose)
+            .any(|&outcome| outcome != Outcome::Lose && outcome != Outcome::Forfeit)
         {
-            while self.table.dealer_value().is_some_and(|v| v < 17) {
+            while let Some(v) = self.table.dealer_value()
+                && (v < 17 || (v == 17 && self.table.dealer_hand().is_soft() && !self.rules.s17))
+            {
                 self.table.dealer_hit();
             }
         }
 
-        self.table.flip_hole();
-
-        for ((spot, (_strat, _bet)), outcome) in processed.iter_mut() {
+        for (spot, outcome) in spots.iter().zip(outcomes.iter_mut()) {
             *outcome = self.table.get_outcome(*spot);
         }
 
-        let outcomes: Vec<_> = processed.iter().map(|(_, outcome)| *outcome).collect();
-        let processed: Vec<_> = processed
-            .into_iter()
-            .map(|((_spot, b), _outcome)| b)
-            .collect();
-
-        self.process_outcomes(processed, &outcomes);
+        self.process_outcomes(&spots, bets, &outcomes);
         outcomes
     }
 
@@ -226,5 +301,10 @@ impl Simulator {
         }
 
         hist
+    }
+
+    /// Returns the rules of the game
+    pub fn rules(&self) -> &Rules {
+        &self.rules
     }
 }
