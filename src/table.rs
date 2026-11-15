@@ -191,7 +191,7 @@ impl Table {
         let hand: &mut Hand = &mut self.player_hands[player];
 
         // Deal the card after split
-        if self.state == TableState::Dealt && hand.len() == 1 {
+        if self.state == TableState::Dealt && hand.len() == 1 && hand.split_level() > 0 {
             hand.insert(self.shoe.deal().unwrap());
         }
         hand
@@ -210,14 +210,6 @@ impl Table {
 
     /// Get the outcome for a player's hand
     pub fn get_outcome(&mut self, player: usize) -> Outcome {
-        debug_assert!(if let Some(v) = self.dealer.value()
-            && v < 17
-        {
-            self.player_hands[player].blackjack() || self.player_hands[player].busted()
-        } else {
-            true
-        });
-
         if self.dealer.blackjack() {
             return if self.player_hand(player).blackjack() {
                 Outcome::Push
@@ -281,16 +273,10 @@ impl Table {
 
         let other_spot = self.player_hands.len();
 
-        let cards: Vec<Card> = self.player_hands[player]
-            .clone()
-            .into_iter()
-            .collect::<Vec<_>>();
-        let first = cards[0];
-        let second = cards[1];
-        self.player_hands[player] = Hand::default();
-        self.player_hands.push(Hand::default());
-        self.player_hands[player].insert(first);
-        self.player_hands[other_spot].insert(second);
+        let (og, other) = self.player_hands[player].clone().split_hand().unwrap();
+
+        self.player_hands[player] = og;
+        self.player_hands.push(other);
 
         Some((player, other_spot))
     }

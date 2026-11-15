@@ -211,6 +211,9 @@ fn main() -> std::io::Result<()> {
             Rank::Nine,
             Rank::Ten,
         ],
+        max_split: 3,
+        resplit_aces: false,
+        split_aces_one_card: true,
         doubleable: vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         late_surrender: false,
     };
