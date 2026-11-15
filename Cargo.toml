@@ -10,7 +10,7 @@ categories = [
 
 description = "Library for blackjack games and trainers"
 documentation = "https://matth2k.github.io/shoo/"
-homepage = "https://matth2k.github.io/shoo/"
+
 include = [
     "Cargo.toml",
     "LICENSE-MIT",
