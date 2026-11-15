@@ -37,6 +37,12 @@ pub struct Rules {
     pub late_surrender: bool,
     /// The splittable cards
     pub splittable: Vec<Rank>,
+    /// Max level of splitting
+    pub max_split: usize,
+    /// Allow aces to be split again
+    pub resplit_aces: bool,
+    /// Split aces only can draw one card
+    pub split_aces_one_card: bool,
     /// Hands that can be doubled
     pub doubleable: Vec<u8>,
 }
@@ -46,9 +52,8 @@ impl Default for Rules {
         Self {
             num_decks: 6,
             s17: true,
-            penetration: 0.75,
-            random_penetration: true,
-            late_surrender: true,
+            penetration: 0.7,
+            random_penetration: false,
             splittable: vec![
                 Rank::Ace,
                 Rank::Two,
@@ -61,7 +66,13 @@ impl Default for Rules {
                 Rank::Nine,
                 Rank::Ten,
             ],
-            doubleable: vec![9, 10, 11],
+            max_split: 3,
+            resplit_aces: false,
+            split_aces_one_card: true,
+            doubleable: vec![
+                2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+            ],
+            late_surrender: true,
         }
     }
 }
@@ -200,6 +211,12 @@ impl Simulator {
                     && !hand.busted()
                 {
                     match self.strategies[*strat].decide(hand, upcard) {
+                        _ if hand.split_level() > 0
+                            && hand.first().is_some_and(|c| c.is_ace())
+                            && self.rules.split_aces_one_card =>
+                        {
+                            break 'deciding;
+                        }
                         Decision::Double
                             if hand.len() == 2
                                 && self.bankrolls[*strat] >= *bet
@@ -222,6 +239,10 @@ impl Simulator {
                             if self.bankrolls[*strat] >= *bet
                                 && let Some(front) = hand.first()
                                 && self.rules.splittable.contains(&front.rank())
+                                && hand.split_level() < self.rules.max_split
+                                && !(front.is_ace()
+                                    && !self.rules.resplit_aces
+                                    && hand.split_level() > 0)
                                 && let Some((_, other)) = self.table.player_split(*spot) =>
                         {
                             self.bankrolls[*strat] -= bet.clone();

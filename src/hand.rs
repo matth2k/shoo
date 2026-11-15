@@ -41,6 +41,8 @@ pub struct Hand {
     num_aces: u8,
     /// The value of the hand
     val: Value,
+    /// The level of splitting
+    split_level: usize,
 }
 
 impl Default for Hand {
@@ -49,6 +51,7 @@ impl Default for Hand {
             cards: Vec::new(),
             num_aces: 0,
             val: Value::Hard(0),
+            split_level: 0,
         }
     }
 }
@@ -205,6 +208,31 @@ impl Hand {
     /// Returns the first card in the hand
     pub fn first(&self) -> Option<Card> {
         self.cards.first().copied()
+    }
+
+    /// Splits the hand if it is a pair
+    pub fn split_hand(self) -> Result<(Hand, Hand), Hand> {
+        if !self.is_pair() {
+            return Err(self);
+        }
+
+        let first = self.cards[0];
+        let second = self.cards[1];
+
+        let mut hand1 = Hand::default();
+        hand1.insert(first);
+        hand1.split_level = self.split_level + 1;
+
+        let mut hand2 = Hand::default();
+        hand2.insert(second);
+        hand2.split_level = self.split_level + 1;
+
+        Ok((hand1, hand2))
+    }
+
+    /// Returns the split level of a hand. 0 means never split
+    pub fn split_level(&self) -> usize {
+        self.split_level
     }
 }
 
