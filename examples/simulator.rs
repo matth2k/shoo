@@ -55,6 +55,12 @@ impl Strategy for BasicStrategy {
     }
 
     fn insure(&self) -> Option<Bet> {
+        if let Some(counter) = &self.counter
+            && counter.count() >= 3.0
+        {
+            return Some(Bet::from(shoo::Chip::Hundred));
+        }
+
         None
     }
 
