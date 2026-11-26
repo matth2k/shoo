@@ -8,6 +8,10 @@ impl Strategy for SometimesHit {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
     }
 
+    fn insure(&self) -> Option<Bet> {
+        None
+    }
+
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
             Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
@@ -48,6 +52,16 @@ impl Strategy for BasicStrategy {
             c if c < 12.0 => vec![Bet::from(shoo::Chip::Five) * 16; 2],
             _ => vec![Bet::from(shoo::Chip::Five); 1],
         }
+    }
+
+    fn insure(&self) -> Option<Bet> {
+        if let Some(counter) = &self.counter
+            && counter.count() >= 3.0
+        {
+            return Some(Bet::from(shoo::Chip::Hundred));
+        }
+
+        None
     }
 
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
@@ -142,6 +156,10 @@ impl Strategy for SometimesHitTwo {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
     }
 
+    fn insure(&self) -> Option<Bet> {
+        None
+    }
+
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
             Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
@@ -174,6 +192,10 @@ impl Strategy for AlwaysStand {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
     }
 
+    fn insure(&self) -> Option<Bet> {
+        None
+    }
+
     fn decide(&self, _hand: &Hand, _upcard: Card) -> Decision {
         Decision::Stand
     }
@@ -194,29 +216,7 @@ impl Strategy for AlwaysStand {
 fn main() -> std::io::Result<()> {
     let bankroll: Bet = Bet::from(100000);
     let num_decks = 2;
-    let rules = Rules {
-        s17: true,
-        num_decks,
-        penetration: 0.66,
-        random_penetration: false,
-        splittable: vec![
-            Rank::Ace,
-            Rank::Two,
-            Rank::Three,
-            Rank::Four,
-            Rank::Five,
-            Rank::Six,
-            Rank::Seven,
-            Rank::Eight,
-            Rank::Nine,
-            Rank::Ten,
-        ],
-        max_split: 3,
-        resplit_aces: false,
-        split_aces_one_card: true,
-        doubleable: vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        late_surrender: false,
-    };
+    let rules = Rules::pennsylvania(num_decks, 0.7, 4, 4);
 
     let mut trials = Vec::new();
     for _ in 0..20 {
