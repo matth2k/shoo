@@ -29,6 +29,8 @@ pub struct Rules {
     pub num_decks: usize,
     /// Stand on all seventeens
     pub s17: bool,
+    /// The max number of hands a player can have
+    pub max_no_hands: usize,
     /// Deck penetration (0.0-0.85)
     pub penetration: f32,
     /// penetration is normally random
@@ -41,6 +43,8 @@ pub struct Rules {
     pub max_split: usize,
     /// Allow aces to be split again
     pub resplit_aces: bool,
+    /// Allow a double after a split
+    pub double_after_split: bool,
     /// Split aces only can draw one card
     pub split_aces_one_card: bool,
     /// Hands that can be doubled
@@ -52,6 +56,7 @@ impl Default for Rules {
         Self {
             num_decks: 6,
             s17: true,
+            max_no_hands: 4,
             penetration: 0.7,
             random_penetration: false,
             splittable: vec![
@@ -68,6 +73,7 @@ impl Default for Rules {
             ],
             max_split: 3,
             resplit_aces: false,
+            double_after_split: true,
             split_aces_one_card: true,
             doubleable: vec![
                 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -221,7 +227,8 @@ impl Simulator {
                             if hand.len() == 2
                                 && self.bankrolls[*strat] >= *bet
                                 && let Some(v) = hand.value()
-                                && self.rules.doubleable.contains(&v) =>
+                                && self.rules.doubleable.contains(&v)
+                                && (self.rules.double_after_split || hand.split_level() == 0) =>
                         {
                             self.bankrolls[*strat] -= bet.clone();
                             *bet = bet.clone() * 2;
@@ -279,7 +286,7 @@ impl Simulator {
         self.table.flip_hole();
         if outcomes
             .iter()
-            .any(|&outcome| outcome != Outcome::Lose && outcome != Outcome::Forfeit)
+            .any(|&outcome| !matches!(outcome, Outcome::Lose | Outcome::Forfeit))
         {
             while let Some(v) = self.table.dealer_value()
                 && (v < 17 || (v == 17 && self.table.dealer_hand().is_soft() && !self.rules.s17))
@@ -288,7 +295,11 @@ impl Simulator {
             }
         }
 
-        for (spot, outcome) in spots.iter().zip(outcomes.iter_mut()) {
+        for (spot, outcome) in spots
+            .iter()
+            .zip(outcomes.iter_mut())
+            .filter(|(_, o)| !matches!(o, Outcome::Lose | Outcome::Forfeit))
+        {
             *outcome = self.table.get_outcome(*spot);
         }
 
@@ -305,7 +316,7 @@ impl Simulator {
         for _ in 0..iter_max {
             let mut bets = Vec::new();
             for (i, strat) in self.strategies.iter().enumerate() {
-                for bet in strat.bet() {
+                for bet in strat.bet().into_iter().take(self.rules.max_no_hands) {
                     if self.bankrolls[i] >= bet {
                         self.bankrolls[i] -= bet.clone();
                         bets.push((i, bet));

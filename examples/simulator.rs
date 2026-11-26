@@ -196,6 +196,7 @@ fn main() -> std::io::Result<()> {
     let num_decks = 2;
     let rules = Rules {
         s17: true,
+        max_no_hands: 4,
         num_decks,
         penetration: 0.66,
         random_penetration: false,
@@ -214,6 +215,7 @@ fn main() -> std::io::Result<()> {
         max_split: 3,
         resplit_aces: false,
         split_aces_one_card: true,
+        double_after_split: true,
         doubleable: vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
         late_surrender: false,
     };
