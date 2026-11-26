@@ -129,4 +129,4 @@ let res = sim.simulate(50000);
 
 ## Limitations
 
-Most features of Blackjack rulesets are modeled by this application. You can take a look at the Blackjack rules modeled here. However, the accuracy of simulation is the sole responsibility of the user.
+Most features of Blackjack rulesets are modeled by this application. You can take a look at the Blackjack rules modeled [here](https://matth2k.github.io/shoo/shoo/strategy/struct.Rules.html). However, the accuracy of simulation is the sole responsibility of the user.
