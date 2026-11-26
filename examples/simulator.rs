@@ -8,6 +8,10 @@ impl Strategy for SometimesHit {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
     }
 
+    fn insure(&self) -> Option<Bet> {
+        None
+    }
+
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
             Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
@@ -48,6 +52,10 @@ impl Strategy for BasicStrategy {
             c if c < 12.0 => vec![Bet::from(shoo::Chip::Five) * 16; 2],
             _ => vec![Bet::from(shoo::Chip::Five); 1],
         }
+    }
+
+    fn insure(&self) -> Option<Bet> {
+        None
     }
 
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
@@ -142,6 +150,10 @@ impl Strategy for SometimesHitTwo {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
     }
 
+    fn insure(&self) -> Option<Bet> {
+        None
+    }
+
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
         match hand.value() {
             Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
@@ -172,6 +184,10 @@ pub struct AlwaysStand;
 impl Strategy for AlwaysStand {
     fn bet(&self) -> Vec<Bet> {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+    }
+
+    fn insure(&self) -> Option<Bet> {
+        None
     }
 
     fn decide(&self, _hand: &Hand, _upcard: Card) -> Decision {

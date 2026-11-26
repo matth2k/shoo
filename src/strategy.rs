@@ -31,6 +31,8 @@ pub struct Rules {
     pub s17: bool,
     /// Blackjack payout
     pub blackjack_payout: (usize, usize),
+    /// Offers insurance with 2:1 payout
+    pub offers_insurance: bool,
     /// The max number of hands a player can have
     pub max_no_hands: usize,
     /// Deck penetration (0.0-0.85)
@@ -65,6 +67,7 @@ impl Rules {
             num_decks,
             s17: true,
             blackjack_payout: (3, 2),
+            offers_insurance: true,
             max_no_hands,
             penetration,
             random_penetration: false,
@@ -105,6 +108,9 @@ impl Default for Rules {
 pub trait Strategy {
     /// Place a series of bets/hands in the current context
     fn bet(&self) -> Vec<Bet>;
+
+    /// Take an insurance bet
+    fn insure(&self) -> Option<Bet>;
 
     /// Make a choice based on the hand and upcard
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision;
@@ -207,7 +213,23 @@ impl Simulator {
             }
         }
 
+        let mut insurance_bets: Vec<(usize, Bet)> = Vec::new();
+        if self.table.upcard().is_some_and(|c| c.is_ace()) && self.rules.offers_insurance {
+            for (i, strat) in self.strategies.iter().enumerate() {
+                if let Some(bet) = strat.insure()
+                    && self.bankrolls[i] >= bet
+                {
+                    self.bankrolls[i] -= bet.clone();
+                    insurance_bets.push((i, bet));
+                }
+            }
+        }
+
         if self.table.peek() {
+            for (strat, bet) in insurance_bets {
+                self.bankrolls[strat] += bet * 3;
+            }
+
             let outcomes: Vec<_> = spots.iter().map(|&i| self.table.get_outcome(i)).collect();
             self.process_outcomes(&spots, bets, &outcomes);
             return outcomes;

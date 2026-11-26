@@ -166,7 +166,7 @@ impl Table {
     /// # Panics
     /// Panics if there are no cards currently dealt
     pub fn peek(&mut self) -> bool {
-        if self.state != TableState::Dealt {
+        if self.state == TableState::Open {
             panic!("Cannot peek when no cards are dealt");
         }
 
