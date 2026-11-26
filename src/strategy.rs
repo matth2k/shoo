@@ -29,6 +29,8 @@ pub struct Rules {
     pub num_decks: usize,
     /// Stand on all seventeens
     pub s17: bool,
+    /// Blackjack payout
+    pub blackjack_payout: (usize, usize),
     /// The max number of hands a player can have
     pub max_no_hands: usize,
     /// Deck penetration (0.0-0.85)
@@ -39,25 +41,32 @@ pub struct Rules {
     pub late_surrender: bool,
     /// The splittable cards
     pub splittable: Vec<Rank>,
+    /// Hands that can be doubled
+    pub doubleable: Vec<u8>,
     /// Max level of splitting
-    pub max_split: usize,
+    pub max_split_level: usize,
     /// Allow aces to be split again
     pub resplit_aces: bool,
     /// Allow a double after a split
     pub double_after_split: bool,
     /// Split aces only can draw one card
     pub split_aces_one_card: bool,
-    /// Hands that can be doubled
-    pub doubleable: Vec<u8>,
 }
 
-impl Default for Rules {
-    fn default() -> Self {
+impl Rules {
+    /// Returns the rules used in Pennsylvania
+    pub fn pennsylvania(
+        num_decks: usize,
+        penetration: f32,
+        max_split_level: usize,
+        max_no_hands: usize,
+    ) -> Self {
         Self {
-            num_decks: 6,
+            num_decks,
             s17: true,
-            max_no_hands: 4,
-            penetration: 0.7,
+            blackjack_payout: (3, 2),
+            max_no_hands,
+            penetration,
             random_penetration: false,
             splittable: vec![
                 Rank::Ace,
@@ -70,16 +79,25 @@ impl Default for Rules {
                 Rank::Eight,
                 Rank::Nine,
                 Rank::Ten,
+                Rank::Jack,
+                Rank::Queen,
+                Rank::King,
             ],
-            max_split: 3,
-            resplit_aces: false,
-            double_after_split: true,
-            split_aces_one_card: true,
             doubleable: vec![
                 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
             ],
+            max_split_level,
+            resplit_aces: false,
+            double_after_split: true,
+            split_aces_one_card: true,
             late_surrender: true,
         }
+    }
+}
+
+impl Default for Rules {
+    fn default() -> Self {
+        Rules::pennsylvania(6, 0.7, 4, 4)
     }
 }
 
@@ -159,12 +177,12 @@ impl Simulator {
 
     /// Add or subtract for the bankrolls
     fn update_bankroll(&mut self, bets: Vec<(usize, Bet)>, outcomes: &[Outcome]) {
+        let (n, d) = self.rules.blackjack_payout;
         for ((strat, bet), &outcome) in bets.into_iter().zip(outcomes) {
-            let double = bet.clone() * 2;
             match outcome {
-                Outcome::Win => self.bankrolls[strat] += double,
+                Outcome::Win => self.bankrolls[strat] += bet * 2,
                 Outcome::Lose => {}
-                Outcome::Blackjack => self.bankrolls[strat] += double + (bet / 2),
+                Outcome::Blackjack => self.bankrolls[strat] += (bet * (n + d)) / d,
                 Outcome::Push => self.bankrolls[strat] += bet,
                 Outcome::Forfeit => self.bankrolls[strat] += bet / 2,
             }
@@ -246,7 +264,7 @@ impl Simulator {
                             if self.bankrolls[*strat] >= *bet
                                 && let Some(front) = hand.first()
                                 && self.rules.splittable.contains(&front.rank())
-                                && hand.split_level() < self.rules.max_split
+                                && hand.split_level() < self.rules.max_split_level
                                 && !(front.is_ace()
                                     && !self.rules.resplit_aces
                                     && hand.split_level() > 0)

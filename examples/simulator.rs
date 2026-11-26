@@ -194,31 +194,7 @@ impl Strategy for AlwaysStand {
 fn main() -> std::io::Result<()> {
     let bankroll: Bet = Bet::from(100000);
     let num_decks = 2;
-    let rules = Rules {
-        s17: true,
-        max_no_hands: 4,
-        num_decks,
-        penetration: 0.66,
-        random_penetration: false,
-        splittable: vec![
-            Rank::Ace,
-            Rank::Two,
-            Rank::Three,
-            Rank::Four,
-            Rank::Five,
-            Rank::Six,
-            Rank::Seven,
-            Rank::Eight,
-            Rank::Nine,
-            Rank::Ten,
-        ],
-        max_split: 3,
-        resplit_aces: false,
-        split_aces_one_card: true,
-        double_after_split: true,
-        doubleable: vec![2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        late_surrender: false,
-    };
+    let rules = Rules::pennsylvania(num_decks, 0.7, 4, 4);
 
     let mut trials = Vec::new();
     for _ in 0..20 {
