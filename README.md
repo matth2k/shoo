@@ -44,6 +44,10 @@ impl Strategy for AlwaysStand {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
     }
 
+    fn insure(&self) -> Option<Bet> {
+        None
+    }
+
     fn decide(&self, _hand: &Hand, _upcard: Card) -> Decision {
         Decision::Stand
     }
@@ -70,6 +74,10 @@ pub struct SometimesHit;
 impl Strategy for SometimesHit {
     fn bet(&self) -> Vec<Bet> {
         vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+    }
+
+    fn insure(&self) -> Option<Bet> {
+        None
     }
 
     fn decide(&self, hand: &Hand, upcard: Card) -> Decision {
@@ -106,7 +114,7 @@ If you want to simulate advantage play, a.k.a. card counting, you should add tha
 use shoo::strategy:::{Rules, Simulator};
 // Bankroll of 10k units
 let bankroll: Bet = Bet::from(10000);
-/// Get default ruleset (num_decks, pen, surrender, etc..)
+/// Get default PA ruleset (num_decks, pen, surrender, etc..)
 let rules : Rules = Rules::default();
 // Create a simulator with a strategy, bankroll, and rules
 let mut simulator = Simulator::new(AlwaysStand, bankroll.clone(), rules);
@@ -121,4 +129,4 @@ let res = sim.simulate(50000);
 
 ## Limitations
 
-Some features of Blackjack rulesets are not modeled by this application. Two things that come to mind are insurance bets, resplitting aces, and hit or stand on soft 17. This library was programmed with Pennsylvania Blackjack in mind, but rule differences and insurance bets should eventually be modeled.
+Most features of Blackjack rulesets are modeled by this application. You can take a look at the Blackjack rules modeled here. However, the accuracy of simulation is the sole responsibility of the user.
