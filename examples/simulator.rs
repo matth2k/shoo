@@ -1,11 +1,18 @@
 use shoo::strategy::{Decision, Rules, Simulator, Strategy};
 use shoo::{Bet, Card, Counter, Hand, HiLoCounter, Rank, table::Outcome};
+use std::fmt::Display;
 
 pub struct SometimesHit;
 
+impl Display for SometimesHit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SometimesHit")
+    }
+}
+
 impl Strategy for SometimesHit {
     fn bet(&self) -> Vec<Bet> {
-        vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+        vec![Bet::from(shoo::Chip::Five); 2]
     }
 
     fn insure(&self) -> Option<Bet> {
@@ -25,18 +32,16 @@ impl Strategy for SometimesHit {
     fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
-
-    fn max_hands(&self) -> usize {
-        2
-    }
-
-    fn name(&self) -> String {
-        "SometimesHit".to_string()
-    }
 }
 
 pub struct BasicStrategy {
     counter: Option<HiLoCounter>,
+}
+
+impl Display for BasicStrategy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BasicStrategy")
+    }
 }
 
 impl Strategy for BasicStrategy {
@@ -131,14 +136,6 @@ impl Strategy for BasicStrategy {
             counter.clear();
         }
     }
-
-    fn max_hands(&self) -> usize {
-        2
-    }
-
-    fn name(&self) -> String {
-        "BasicStrategy".to_string()
-    }
 }
 
 impl BasicStrategy {
@@ -151,9 +148,15 @@ impl BasicStrategy {
 
 pub struct SometimesHitTwo;
 
+impl Display for SometimesHitTwo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SometimesHitTwo")
+    }
+}
+
 impl Strategy for SometimesHitTwo {
     fn bet(&self) -> Vec<Bet> {
-        vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+        vec![Bet::from(shoo::Chip::Five); 2]
     }
 
     fn insure(&self) -> Option<Bet> {
@@ -175,21 +178,19 @@ impl Strategy for SometimesHitTwo {
     fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
-
-    fn max_hands(&self) -> usize {
-        2
-    }
-
-    fn name(&self) -> String {
-        "SometimesHitTwo".to_string()
-    }
 }
 
 pub struct AlwaysStand;
 
+impl Display for AlwaysStand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AlwaysStand")
+    }
+}
+
 impl Strategy for AlwaysStand {
     fn bet(&self) -> Vec<Bet> {
-        vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+        vec![Bet::from(shoo::Chip::Five); 2]
     }
 
     fn insure(&self) -> Option<Bet> {
@@ -203,14 +204,6 @@ impl Strategy for AlwaysStand {
     fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
-
-    fn max_hands(&self) -> usize {
-        2
-    }
-
-    fn name(&self) -> String {
-        "AlwaysStand".to_string()
-    }
 }
 
 fn main() -> std::io::Result<()> {
