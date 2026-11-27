@@ -37,11 +37,18 @@ With the `Strategy` trait and `Simulator` struct, you can test and compare how s
 ```rust
 use shoo::strategy::{Decision, Strategy};
 use shoo::{Bet, Card, Hand, Rank, table::Outcome};
+use std::fmt::Display;
 pub struct AlwaysStand;
+
+impl Display for AlwaysStand {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AlwaysStand")
+    }
+}
 
 impl Strategy for AlwaysStand {
     fn bet(&self) -> Vec<Bet> {
-        vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+        vec![Bet::from(shoo::Chip::Five); 2]
     }
 
     fn insure(&self) -> Option<Bet> {
@@ -55,14 +62,6 @@ impl Strategy for AlwaysStand {
     fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
-
-    fn max_hands(&self) -> usize {
-        2
-    }
-
-    fn name(&self) -> String {
-        "AlwaysStand".to_string()
-    }
 }
 ```
 
@@ -71,9 +70,15 @@ A better strategy would use hitting, splitting, doubling of course. Here is some
 ```rust
 pub struct SometimesHit;
 
+impl Display for SometimesHit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "SometimesHit")
+    }
+}
+
 impl Strategy for SometimesHit {
     fn bet(&self) -> Vec<Bet> {
-        vec![Bet::from(shoo::Chip::Five); self.max_hands()]
+        vec![Bet::from(shoo::Chip::Five); 2]
     }
 
     fn insure(&self) -> Option<Bet> {
@@ -85,9 +90,7 @@ impl Strategy for SometimesHit {
             Some(11) | Some(10) if !matches!(upcard.rank(), Rank::Ace | Rank::Ten) => {
                 Decision::Double
             }
-            Some(v) if v <= 16 && hand.is_pair() && upcard.rank() <= Rank::Six => {
-                Decision::Split
-            }
+            Some(v) if v <= 16 && hand.is_pair() && upcard.rank() <= Rank::Six => Decision::Split,
             Some(v) if v <= 11 => Decision::Hit,
             Some(v) if v <= 16 && upcard.rank() >= Rank::Seven => Decision::Hit,
             _ => Decision::Stand,
@@ -97,34 +100,31 @@ impl Strategy for SometimesHit {
     fn process(&mut self, _hands: &[Hand], _dealer: &Hand, _outcomes: &[Outcome]) {}
 
     fn shoe_shuffled(&mut self) {}
-
-    fn max_hands(&self) -> usize {
-        2
-    }
-
-    fn name(&self) -> String {
-        "SometimesHit".to_string()
-    }
 }
 ```
 
 If you want to simulate advantage play, a.k.a. card counting, you should add that within the `process()` hook. After every hand, the strategy can inspect the winning/losing hands and the dealer hand. Here you would consume the individual cards and add them to the running count. It is as simple as adding a card counter member field. You can even vary how many hands you want to play in `bet()`. I will leave those strategy implementations as an exercise to the reader. Lastly, you can simulate these strategies at a table:
 
 ```rust
-use shoo::strategy:::{Rules, Simulator};
-// Bankroll of 10k units
-let bankroll: Bet = Bet::from(10000);
-/// Get default PA ruleset (num_decks, pen, surrender, etc..)
-let rules : Rules = Rules::default();
-// Create a simulator with a strategy, bankroll, and rules
-let mut simulator = Simulator::new(AlwaysStand, bankroll.clone(), rules);
-// Add a second strategy with its own bankroll
-sim.insert(SometimesHitTwo, bankroll);
+use shoo::strategy::{Rules, Simulator};
 
-// Run a simulation with max number of games
-let res = sim.simulate(50000);
+fn main() {
+    // Bankroll of 10k units
+    let bankroll: Bet = Bet::from(10000);
+    // Get default PA ruleset (num_decks, pen, surrender, etc..)
+    let rules: Rules = Rules::default();
+    // Create a simulator with a strategy, bankroll, and rules
+    let mut simulator = Simulator::new(AlwaysStand, bankroll.clone(), rules);
+    // Add a second strategy with its own bankroll
+    simulator.insert(SometimesHit, bankroll);
 
-// res[t][i] is the bankroll state of strategy `i` at iteration `t`
+    // Run a simulation with max number of games
+    let res = simulator.simulate(50000);
+
+    // res[t][i] is the bankroll state of strategy `i` at iteration `t`
+    eprintln!("{:?}", res);
+}
+
 ```
 
 ## Limitations

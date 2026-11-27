@@ -105,7 +105,7 @@ impl Default for Rules {
 }
 
 /// Decisions needed to play blackjack
-pub trait Strategy {
+pub trait Strategy: std::fmt::Display {
     /// Place a series of bets/hands in the current context
     fn bet(&self) -> Vec<Bet>;
 
@@ -120,18 +120,12 @@ pub trait Strategy {
 
     /// Hook for when the cards are shuffled. This is useful for card counting strategies.
     fn shoe_shuffled(&mut self);
-
-    /// Max number of hands this strategy ever uses
-    fn max_hands(&self) -> usize;
-
-    /// The name of this strategy
-    fn name(&self) -> String;
 }
 
 /// Run a blackjack strategy
-pub struct Simulator {
+pub struct Simulator<'a> {
     /// The strategies to run
-    strategies: Vec<Box<dyn Strategy>>,
+    strategies: Vec<Box<dyn Strategy + 'a>>,
     /// The bankrolls per stategy
     bankrolls: Vec<Bet>,
     /// The blackjack table to play on
@@ -140,9 +134,12 @@ pub struct Simulator {
     rules: Rules,
 }
 
-impl Simulator {
+impl<'a> Simulator<'a> {
     /// Create a new simulator with the given strategy and bankroll
-    pub fn new<S: Strategy + 'static>(strategy: S, bankroll: Bet, rules: Rules) -> Self {
+    pub fn new<'b, S: Strategy + 'b>(strategy: S, bankroll: Bet, rules: Rules) -> Self
+    where
+        'b: 'a,
+    {
         let bankrolls = vec![bankroll];
         let pen_dev = if rules.random_penetration {
             Some(0.1)
@@ -150,7 +147,7 @@ impl Simulator {
             None
         };
         let table = Table::new(rules.num_decks, rules.penetration, pen_dev);
-        let boxed: Box<dyn Strategy> = Box::new(strategy);
+        let boxed: Box<dyn Strategy + 'a> = Box::new(strategy);
         let strategies = vec![boxed];
         Self {
             strategies,
@@ -161,9 +158,12 @@ impl Simulator {
     }
 
     /// Add an additional strategy to the simulator
-    pub fn insert<S: Strategy + 'static>(&mut self, strategy: S, bankroll: Bet) {
+    pub fn insert<'b, S: Strategy + 'b>(&mut self, strategy: S, bankroll: Bet)
+    where
+        'b: 'a,
+    {
         self.bankrolls.push(bankroll);
-        let boxed: Box<dyn Strategy> = Box::new(strategy);
+        let boxed: Box<dyn Strategy + 'a> = Box::new(strategy);
         self.strategies.push(boxed);
     }
 
